@@ -63,8 +63,9 @@
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
     "demo": "cd demo && npm run dev",
-    "postbuild": "cp dist/cjs/index.css dist/index.css && cp dist/cjs/index.css.map dist/index.css.map && sed -i '' '/import.*\\.css/d' dist/esm/components/CommentOverlay.js",
-    "prepublishOnly": "npm run build"
+    "postbuild": "cp dist/cjs/index.css dist/index.css && cp dist/cjs/index.css.map dist/index.css.map && node -e \"const f='dist/esm/components/CommentOverlay.js';require('fs').writeFileSync(f,require('fs').readFileSync(f,'utf8').replace(/^import.*\\.css.*\\n/m,''))\"",
+    "prepublishOnly": "npm run build",
+    "prepare": "husky"
   },
   "peerDependencies": {
     "@supabase/supabase-js": ">=2.0.0",
@@ -87,6 +88,7 @@
     "@types/react-dom": "^18.3.0",
     "eslint": "^9.0.0",
     "html-to-image": "^1.11.13",
+    "husky": "^9.1.7",
     "jsdom": "^25.0.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
