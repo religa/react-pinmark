@@ -1,6 +1,6 @@
 {
   "name": "react-pinmark",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Embeddable commenting overlay for React applications",
   "license": "MIT",
   "author": "react-pinmark contributors",
@@ -63,7 +63,7 @@
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
     "demo": "cd demo && npm run dev",
-    "postbuild": "cp dist/cjs/index.css dist/index.css && cp dist/cjs/index.css.map dist/index.css.map",
+    "postbuild": "cp dist/cjs/index.css dist/index.css && cp dist/cjs/index.css.map dist/index.css.map && sed -i '' '/import.*\\.css/d' dist/esm/components/CommentOverlay.js",
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
