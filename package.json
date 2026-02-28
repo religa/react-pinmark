@@ -1,0 +1,102 @@
+{
+  "name": "react-pinmark",
+  "version": "0.1.0",
+  "description": "Embeddable commenting overlay for React applications",
+  "license": "MIT",
+  "author": "react-pinmark contributors",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/religa/react-pinmark.git"
+  },
+  "homepage": "https://github.com/religa/react-pinmark#readme",
+  "bugs": {
+    "url": "https://github.com/religa/react-pinmark/issues"
+  },
+  "keywords": [
+    "react",
+    "comments",
+    "annotations",
+    "overlay",
+    "feedback",
+    "pin",
+    "collaboration",
+    "review"
+  ],
+  "sideEffects": [
+    "*.css"
+  ],
+  "type": "module",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./styles": "./dist/index.css",
+    "./supabase": {
+      "import": {
+        "types": "./dist/esm/adapters/supabase/index.d.ts",
+        "default": "./dist/esm/adapters/supabase/index.js"
+      },
+      "require": {
+        "types": "./dist/esm/adapters/supabase/index.d.ts",
+        "default": "./dist/cjs/supabase.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "prebuild": "rm -rf dist",
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit",
+    "demo": "cd demo && npm run dev",
+    "postbuild": "cp dist/cjs/index.css dist/index.css && cp dist/cjs/index.css.map dist/index.css.map",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "@supabase/supabase-js": ">=2.0.0",
+    "html-to-image": ">=1.11.0",
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@supabase/supabase-js": {
+      "optional": true
+    },
+    "html-to-image": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "eslint": "^9.0.0",
+    "html-to-image": "^1.11.13",
+    "jsdom": "^25.0.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^2.1.0"
+  },
+  "dependencies": {
+    "micromark": "^4.0.2",
+    "zustand": "^5.0.0"
+  }
+}
