@@ -95,3 +95,14 @@ src/
 - `html-to-image` is lazily imported at runtime — only loaded when `captureViewport()` is first called
 - Supabase adapter: separate entry point (`react-pinmark/supabase`), tree-shakeable
 - `@supabase/supabase-js` is a peer dep — not bundled
+
+## Design Principles
+
+* **DRY (Don’t Repeat Yourself)**: Define field types, constraints, and docs once, then reuse everywhere (shared packages, generated types, or schema-first models).
+* **Single Source of Truth**: One canonical schema drives validation, API contracts, and documentation (for example Zod schemas, OpenAPI, or a shared domain model package).
+* **Type Safety**: End-to-end typing from backend to frontend (TypeScript strict mode, typed APIs, and runtime validation that infers static types).
+* **YAGNI**: Avoid introducing frameworks, abstractions, or tooling until there is a clear, current need.
+* **KISS**: Prefer simple patterns and boring solutions over clever architecture.
+* **Clean Code**: No unused exports/imports, no dead code, consistent formatting, linting, and all tests green in CI.
+* **Greenfield Project**: Optimize for clarity and forward progress over backward compatibility concerns.
+
