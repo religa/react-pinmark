@@ -114,10 +114,13 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
   const handleDownload = useCallback(() => {
     const selected = threads.filter((t) => selectedIds.has(t.id));
     const data = selected.map((t) => ({
+      id: t.id,
+      projectId: t.projectId,
       pinNumber: getPinNumber(t.id),
       status: t.status,
       pageUrl: t.pageUrl,
       createdAt: t.createdAt,
+      metadata: t.metadata ?? null,
       pin: {
         x: t.pin.x,
         y: t.pin.y,
@@ -128,6 +131,10 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
         author: c.author.displayName,
         body: c.body,
         createdAt: c.createdAt,
+        attachments: c.attachments.map((a) => ({
+          id: a.id,
+          url: a.url,
+        })),
       })),
     }));
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
