@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "pinmark": {
+      "command": "node",
+      "args": ["./dist/mcp/index.js"],
+      "env": {
+        "PINMARK_SUPABASE_URL": "https://YOUR_PROJECT.supabase.co",
+        "PINMARK_SUPABASE_ANON_KEY": "YOUR_ANON_KEY",
+        "PINMARK_PROJECT_ID": "YOUR_PROJECT_ID"
+      }
+    }
+  }
+}

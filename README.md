@@ -229,6 +229,76 @@ Add the class `rc-screenshot-hide` to any element that should be omitted from ca
 
 The overlay's own UI (pins, floating buttons) is always excluded automatically.
 
+## MCP server (AI assistant integration)
+
+react-pinmark ships a [Model Context Protocol](https://modelcontextprotocol.io/) server that lets AI assistants (Claude Code, Cursor, etc.) manage review threads directly.
+
+### Available tools
+
+| Tool | Description |
+|---|---|
+| `pinmark_list_threads` | List threads, optionally filtered by status or page URL |
+| `pinmark_get_comments` | Get all comments for a thread |
+| `pinmark_add_comment` | Add a comment to a thread |
+| `pinmark_resolve_thread` | Mark a thread as resolved |
+| `pinmark_reopen_thread` | Reopen a resolved thread |
+| `pinmark_delete_thread` | Delete a thread and its comments |
+| `pinmark_delete_comment` | Delete a specific comment |
+| `pinmark_export` | Export threads as JSON or Markdown |
+
+### Setup with Claude Code
+
+1. Build the MCP server:
+
+```bash
+npm run build
+```
+
+2. Copy the example settings and fill in your credentials:
+
+```bash
+cp .claude/settings.json.example .claude/settings.json
+```
+
+Edit `.claude/settings.json` with your Supabase URL, anon key, and project ID. If you already have a `.pinmarkrc` or `PINMARK_*` environment variables configured, you can omit the `env` block — the server uses the same config resolution as the CLI.
+
+3. Restart Claude Code. The `pinmark_*` tools will be available automatically.
+
+### Alternative: global install
+
+```bash
+npm install -g react-pinmark
+```
+
+Then in `~/.claude/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "pinmark": {
+      "command": "react-pinmark-mcp",
+      "env": {
+        "PINMARK_SUPABASE_URL": "https://YOUR_PROJECT.supabase.co",
+        "PINMARK_SUPABASE_ANON_KEY": "YOUR_ANON_KEY",
+        "PINMARK_PROJECT_ID": "YOUR_PROJECT_ID"
+      }
+    }
+  }
+}
+```
+
+### CLI
+
+The same operations are available via the CLI:
+
+```bash
+npx react-pinmark threads list --status open
+npx react-pinmark comments add <thread-id> --body "Fixed in latest deploy"
+npx react-pinmark export --format markdown
+```
+
+Run `npx react-pinmark --help` for the full command list.
+
 ## License
 
 MIT

@@ -13,6 +13,7 @@ demo/dist/
 
 # Claude project memory
 .claude/
+!.claude/settings.json.example
 
 # Development scratch / internal docs
 coverage/

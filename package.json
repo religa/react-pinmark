@@ -63,7 +63,8 @@
     }
   },
   "bin": {
-    "react-pinmark": "./dist/cli/index.js"
+    "react-pinmark": "./dist/cli/index.js",
+    "react-pinmark-mcp": "./dist/mcp/index.js"
   },
   "files": [
     "dist"
@@ -95,6 +96,7 @@
     }
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@types/node": "^25.5.0",
