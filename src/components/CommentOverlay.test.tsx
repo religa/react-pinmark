@@ -6,10 +6,10 @@ import type { BackendAdapter, AttachmentAdapter } from '../adapters/adapter';
 import type { Thread, Attachment } from '../core/types';
 
 vi.mock('../core/screenshot', () => ({
-  captureViewport: vi.fn(),
+  captureViewportWithPin: vi.fn(),
 }));
 
-import { captureViewport } from '../core/screenshot';
+import { captureViewportWithPin } from '../core/screenshot';
 
 function createMockBackend(threads: Thread[] = []): BackendAdapter {
   return {
@@ -240,12 +240,12 @@ describe('CommentOverlay — screenshot capture', () => {
       createObjectURL: vi.fn().mockReturnValue('blob:rc-test-screenshot'),
       revokeObjectURL: vi.fn(),
     });
-    vi.mocked(captureViewport).mockResolvedValue(
+    vi.mocked(captureViewportWithPin).mockResolvedValue(
       new Blob(['fake-screenshot'], { type: 'image/jpeg' }),
     );
   });
 
-  it('calls captureViewport when captureScreenshot=true and attachmentAdapter is provided', async () => {
+  it('calls captureViewportWithPin when captureScreenshot=true and attachmentAdapter is provided', async () => {
     const attachmentAdapter = makeMockAttachmentAdapter();
     render(
       <CommentProvider
@@ -263,10 +263,10 @@ describe('CommentOverlay — screenshot capture', () => {
     fireEvent.click(toggle);
     clickOverlay();
 
-    expect(captureViewport).toHaveBeenCalledTimes(1);
+    expect(captureViewportWithPin).toHaveBeenCalledTimes(1);
   });
 
-  it('does not call captureViewport when captureScreenshot=false', async () => {
+  it('does not call captureViewportWithPin when captureScreenshot=false', async () => {
     const attachmentAdapter = makeMockAttachmentAdapter();
     render(
       <CommentProvider
@@ -284,10 +284,10 @@ describe('CommentOverlay — screenshot capture', () => {
     fireEvent.click(toggle);
     clickOverlay();
 
-    expect(captureViewport).not.toHaveBeenCalled();
+    expect(captureViewportWithPin).not.toHaveBeenCalled();
   });
 
-  it('does not call captureViewport without attachmentAdapter', async () => {
+  it('does not call captureViewportWithPin without attachmentAdapter', async () => {
     render(
       <CommentProvider
         backend={createMockBackendWithCreate()}
@@ -303,11 +303,11 @@ describe('CommentOverlay — screenshot capture', () => {
     fireEvent.click(toggle);
     clickOverlay();
 
-    expect(captureViewport).not.toHaveBeenCalled();
+    expect(captureViewportWithPin).not.toHaveBeenCalled();
   });
 
   it('creates thread without screenshot if capture returns null', async () => {
-    vi.mocked(captureViewport).mockResolvedValue(null);
+    vi.mocked(captureViewportWithPin).mockResolvedValue(null);
     const backend = createMockBackendWithCreate();
     const attachmentAdapter = makeMockAttachmentAdapter();
 
@@ -395,7 +395,7 @@ describe('CommentOverlay — screenshot capture', () => {
     const toggle = await screen.findByLabelText('Enter comment mode');
     fireEvent.click(toggle);
     clickOverlay(100, 100);
-    expect(captureViewport).toHaveBeenCalledTimes(1);
+    expect(captureViewportWithPin).toHaveBeenCalledTimes(1);
 
     // Cancel with Escape — pendingPin is cleared but screenshotRef is NOT (bug)
     fireEvent.keyDown(document, { key: 'Escape' });
@@ -418,8 +418,8 @@ describe('CommentOverlay — screenshot capture', () => {
     fireEvent.click(toggle2);
     clickOverlay(200, 200);
 
-    // captureViewport should NOT have been called again
-    expect(captureViewport).toHaveBeenCalledTimes(1);
+    // captureViewportWithPin should NOT have been called again
+    expect(captureViewportWithPin).toHaveBeenCalledTimes(1);
 
     // Submit the comment
     const textarea = await screen.findByPlaceholderText('Add a comment...');
@@ -437,7 +437,7 @@ describe('CommentOverlay — screenshot capture', () => {
     );
   });
 
-  it('does not call captureViewport when a reply is submitted to an existing thread', async () => {
+  it('does not call captureViewportWithPin when a reply is submitted to an existing thread', async () => {
     const thread = makeThread();
     const backend = createMockBackend([thread]);
     const attachmentAdapter = makeMockAttachmentAdapter();
@@ -463,7 +463,7 @@ describe('CommentOverlay — screenshot capture', () => {
     fireEvent.change(replyTextarea, { target: { value: 'My reply' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
-    // captureViewport must NOT be called — replies never trigger screenshot capture
-    expect(captureViewport).not.toHaveBeenCalled();
+    // captureViewportWithPin must NOT be called — replies never trigger screenshot capture
+    expect(captureViewportWithPin).not.toHaveBeenCalled();
   });
 });

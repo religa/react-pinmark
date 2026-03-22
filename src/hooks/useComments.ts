@@ -1,6 +1,7 @@
 import { useSyncExternalStore, useCallback } from 'react';
 import { useCommentContext } from '../components/CommentContext';
 import { captureContext } from '../core/context-capture';
+import type { TargetInfo } from '../core/context-capture';
 import { getStoredAuthor } from '../core/author';
 import type { Thread, Comment, PinPosition, ThreadFilter, Attachment } from '../core/types';
 import type { CommentStore } from '../core/state';
@@ -22,6 +23,7 @@ export interface UseComments {
     pin: PinPosition;
     body: string;
     attachments?: Attachment[];
+    targetInfo?: TargetInfo;
   }): Promise<Thread>;
   replyToThread(
     threadId: string,
@@ -111,13 +113,14 @@ export function useComments(): UseComments {
       pin: PinPosition;
       body: string;
       attachments?: Attachment[];
+      targetInfo?: TargetInfo;
     }): Promise<Thread> => {
       const author = getAuthor();
       if (!author) {
         throw new Error('Author identity required');
       }
 
-      const metadata = captureContext(contextProvider) as unknown as Record<string, unknown>;
+      const metadata: Record<string, unknown> = { ...captureContext(contextProvider, input.targetInfo) };
 
       const thread = await backend.createThread({
         projectId,

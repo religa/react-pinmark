@@ -182,6 +182,76 @@ describe('ThreadList', () => {
     expect(screen.queryByText('Resolved comment')).not.toBeInTheDocument();
   });
 
+  describe('handleDownload export format', () => {
+    let blobContent: string;
+
+    beforeEach(() => {
+      blobContent = '';
+      vi.stubGlobal('URL', {
+        createObjectURL: vi.fn(() => 'blob:test'),
+        revokeObjectURL: vi.fn(),
+      });
+      // Intercept Blob constructor to capture content
+      const OrigBlob = Blob;
+      vi.stubGlobal('Blob', class extends OrigBlob {
+        constructor(parts: BlobPart[], options?: BlobPropertyBag) {
+          super(parts, options);
+          blobContent = parts[0] as string;
+        }
+      });
+    });
+
+    async function selectAndDownload(thread: Thread) {
+      const backend = createMockBackend([thread]);
+      renderThreadList(backend);
+
+      await waitFor(() => {
+        expect(screen.getByText(thread.comments[0]?.body ?? '')).toBeInTheDocument();
+      });
+
+      // Select the thread
+      const checkbox = screen.getByLabelText(/Select thread/);
+      fireEvent.click(checkbox);
+
+      // Click download
+      await waitFor(() => {
+        expect(screen.getByText('Download')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText('Download'));
+
+      return JSON.parse(blobContent);
+    }
+
+    it('exported JSON has exportVersion and exportedAt fields', async () => {
+      const data = await selectAndDownload(makeThread());
+      expect(data.exportVersion).toBe(1);
+      expect(data.exportedAt).toBeTruthy();
+      expect(data.threads).toBeInstanceOf(Array);
+    });
+
+    it('exported JSON includes pin.anchorLabel', async () => {
+      const thread = makeThread({
+        pin: { x: 50, y: 200, selector: '#test', anchorLabel: 'testid:test' },
+      });
+      const data = await selectAndDownload(thread);
+      expect(data.threads[0].pin.anchorLabel).toBe('testid:test');
+    });
+
+    it('exported JSON includes context (metadata) when present', async () => {
+      const thread = makeThread({
+        metadata: { viewport: { width: 1280, height: 720 } },
+      });
+      const data = await selectAndDownload(thread);
+      expect(data.threads[0].context).toEqual({ viewport: { width: 1280, height: 720 } });
+    });
+
+    it('exported JSON includes context: null when metadata is absent', async () => {
+      const thread = makeThread({ metadata: undefined });
+      const data = await selectAndDownload(thread);
+      expect(data.threads[0].context).toBeNull();
+    });
+  });
+
   it('closes on Escape key when open', async () => {
     const backend = createMockBackend([makeThread()]);
     const { container } = render(

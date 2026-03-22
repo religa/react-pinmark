@@ -2,6 +2,12 @@ export interface Author {
   displayName: string;
 }
 
+export interface ScrollContainerInfo {
+  selector: string;
+  scrollTop: number;
+  scrollLeft: number;
+}
+
 export interface PinPosition {
   x: number; // % of viewport width
   y: number; // px from document top
@@ -9,6 +15,14 @@ export interface PinPosition {
   selectorOffset?: {
     x: number; // fraction of anchor element width (0..1)
     y: number; // fraction of anchor element height (0..1)
+  };
+  anchorLabel?: string;
+  scrollContainers?: ScrollContainerInfo[];
+  contentFingerprint?: {
+    textHash: string;
+    tagName: string;
+    nthOfType: number;
+    parentSelector?: string;
   };
 }
 

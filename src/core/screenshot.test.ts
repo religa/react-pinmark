@@ -1,11 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { captureViewport } from './screenshot';
+import { captureViewport, captureViewportWithPin } from './screenshot';
 
 vi.mock('html-to-image', () => ({
   toJpeg: vi.fn(),
 }));
 
+vi.mock('./pin-resolver', () => ({
+  resolvePin: vi.fn(() => ({ left: 200, top: 400 })),
+}));
+
 import { toJpeg } from 'html-to-image';
+import { resolvePin } from './pin-resolver';
 
 function makeFetchMock(blob: Blob = new Blob(['img'], { type: 'image/jpeg' })) {
   return vi.fn().mockResolvedValue({ blob: vi.fn().mockResolvedValue(blob) });
@@ -95,5 +100,71 @@ describe('captureViewport', () => {
       expect.anything(),
       expect.objectContaining({ pixelRatio: 1 }),
     );
+  });
+});
+
+describe('captureViewportWithPin', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', makeFetchMock());
+    vi.stubGlobal('innerWidth', 1000);
+    vi.stubGlobal('innerHeight', 800);
+    vi.stubGlobal('scrollY', 100);
+    vi.stubGlobal('scrollTo', vi.fn());
+    vi.mocked(resolvePin).mockReturnValue({ left: 200, top: 400 });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetAllMocks();
+    // Clean up any markers left in DOM
+    document.querySelectorAll('.rc-screenshot-marker').forEach((el) => el.remove());
+  });
+
+  it('creates and removes the marker element', async () => {
+    vi.mocked(toJpeg).mockResolvedValue('data:image/jpeg;base64,AA==');
+    await captureViewportWithPin({ x: 20, y: 400 });
+
+    // Marker should be removed after capture
+    expect(document.querySelector('.rc-screenshot-marker')).toBeNull();
+  });
+
+  it('positions marker at resolved coordinates', async () => {
+    let capturedMarker: HTMLElement | null = null;
+    vi.mocked(toJpeg).mockImplementation(async () => {
+      capturedMarker = document.querySelector('.rc-screenshot-marker');
+      return 'data:image/jpeg;base64,AA==';
+    });
+
+    await captureViewportWithPin({ x: 20, y: 400 });
+
+    expect(capturedMarker).not.toBeNull();
+    expect(capturedMarker!.style.left).toBe('200px');
+    expect(capturedMarker!.style.top).toBe('400px');
+  });
+
+  it('marker is removed even when capture throws', async () => {
+    vi.mocked(toJpeg).mockRejectedValue(new Error('fail'));
+    await captureViewportWithPin({ x: 20, y: 400 });
+
+    expect(document.querySelector('.rc-screenshot-marker')).toBeNull();
+  });
+
+  it('saves and restores scroll position', async () => {
+    vi.mocked(toJpeg).mockResolvedValue('data:image/jpeg;base64,AA==');
+    await captureViewportWithPin({ x: 20, y: 400 });
+
+    const scrollTo = vi.mocked(window.scrollTo);
+    // First call: scroll to center pin
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'instant' }); // max(0, 400 - 400) = 0
+    // Last call: restore scroll
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 100, behavior: 'instant' });
+  });
+
+  it('restores scroll position even when capture throws', async () => {
+    vi.mocked(toJpeg).mockRejectedValue(new Error('fail'));
+    await captureViewportWithPin({ x: 20, y: 400 });
+
+    const scrollTo = vi.mocked(window.scrollTo);
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 100, behavior: 'instant' });
   });
 });

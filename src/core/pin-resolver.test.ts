@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { resolvePin, detectSelector, createPinPosition } from './pin-resolver';
+import { resolvePin, detectSelector, createPinPosition, simpleHash } from './pin-resolver';
 
 describe('resolvePin', () => {
   beforeEach(() => {
@@ -193,6 +193,57 @@ describe('detectSelector', () => {
     document.body.removeChild(form);
   });
 
+  it('returns anchorLabel when element has data-testid', () => {
+    const el = document.createElement('div');
+    el.setAttribute('data-testid', 'report-form');
+    document.body.appendChild(el);
+
+    el.getBoundingClientRect = vi.fn(() => ({
+      left: 0, top: 0, right: 100, bottom: 100,
+      width: 100, height: 100, x: 0, y: 0, toJSON: () => {},
+    }));
+
+    const result = detectSelector(el, 50, 50);
+    expect(result).not.toBeNull();
+    expect(result!.anchorLabel).toBe('testid:report-form');
+
+    document.body.removeChild(el);
+  });
+
+  it('returns anchorLabel with # prefix for id anchors', () => {
+    const parent = document.createElement('div');
+    parent.id = 'overview';
+    const child = document.createElement('span');
+    parent.appendChild(child);
+    document.body.appendChild(parent);
+
+    child.getBoundingClientRect = vi.fn(() => ({
+      left: 0, top: 0, right: 10, bottom: 10,
+      width: 10, height: 10, x: 0, y: 0, toJSON: () => {},
+    }));
+
+    const result = detectSelector(child, 5, 5);
+    expect(result).not.toBeNull();
+    expect(result!.anchorLabel).toBe('#overview');
+
+    document.body.removeChild(parent);
+  });
+
+  it('anchorLabel is undefined when no semantic attribute found', () => {
+    const el = document.createElement('span');
+    document.body.appendChild(el);
+    el.getBoundingClientRect = vi.fn(() => ({
+      left: 0, top: 0, right: 10, bottom: 10,
+      width: 10, height: 10, x: 0, y: 0, toJSON: () => {},
+    }));
+
+    const result = detectSelector(el, 5, 5);
+    expect(result).not.toBeNull();
+    expect(result!.anchorLabel).toBeUndefined();
+
+    document.body.removeChild(el);
+  });
+
   it('prefers data-testid over name', () => {
     const input = document.createElement('input');
     input.setAttribute('data-testid', 'email-input');
@@ -339,6 +390,22 @@ describe('createPinPosition', () => {
     document.body.removeChild(target);
   });
 
+  it('passes through anchorLabel when available', () => {
+    const el = document.createElement('div');
+    el.setAttribute('data-testid', 'my-widget');
+    document.body.appendChild(el);
+
+    el.getBoundingClientRect = vi.fn(() => ({
+      left: 0, top: 0, right: 100, bottom: 100,
+      width: 100, height: 100, x: 0, y: 0, toJSON: () => {},
+    }));
+
+    const pin = createPinPosition(50, 50, el);
+    expect(pin.anchorLabel).toBe('testid:my-widget');
+
+    document.body.removeChild(el);
+  });
+
   it('includes selector info when available', () => {
     const parent = document.createElement('div');
     parent.id = 'target-el';
@@ -361,5 +428,191 @@ describe('createPinPosition', () => {
     expect(pin.selectorOffset).toBeDefined();
 
     document.body.removeChild(parent);
+  });
+});
+
+describe('simpleHash', () => {
+  it('produces consistent output for same input', () => {
+    expect(simpleHash('hello')).toBe(simpleHash('hello'));
+  });
+
+  it('produces different output for different inputs', () => {
+    expect(simpleHash('hello')).not.toBe(simpleHash('world'));
+  });
+});
+
+describe('captureContentFingerprint via createPinPosition', () => {
+  beforeEach(() => {
+    vi.stubGlobal('innerWidth', 1000);
+    vi.stubGlobal('scrollY', 0);
+  });
+
+  it('captures tagName, nthOfType, and textHash', () => {
+    const parent = document.createElement('div');
+    const el = document.createElement('span');
+    el.textContent = 'Hello';
+    parent.appendChild(el);
+    document.body.appendChild(parent);
+
+    el.getBoundingClientRect = vi.fn(() => ({
+      left: 0, top: 0, right: 10, bottom: 10,
+      width: 10, height: 10, x: 0, y: 0, toJSON: () => {},
+    }));
+
+    const pin = createPinPosition(5, 5, el);
+    expect(pin.contentFingerprint).toBeDefined();
+    expect(pin.contentFingerprint!.tagName).toBe('span');
+    expect(pin.contentFingerprint!.nthOfType).toBe(1);
+    expect(pin.contentFingerprint!.textHash).toBeTruthy();
+
+    document.body.removeChild(parent);
+  });
+
+  it('nthOfType is correct when element has same-tag siblings', () => {
+    const parent = document.createElement('div');
+    const span1 = document.createElement('span');
+    span1.textContent = 'First';
+    const span2 = document.createElement('span');
+    span2.textContent = 'Second';
+    parent.appendChild(span1);
+    parent.appendChild(span2);
+    document.body.appendChild(parent);
+
+    span2.getBoundingClientRect = vi.fn(() => ({
+      left: 0, top: 0, right: 10, bottom: 10,
+      width: 10, height: 10, x: 0, y: 0, toJSON: () => {},
+    }));
+
+    const pin = createPinPosition(5, 5, span2);
+    expect(pin.contentFingerprint!.nthOfType).toBe(2);
+
+    document.body.removeChild(parent);
+  });
+
+  it('parentSelector is set when a parent has a unique attribute', () => {
+    const parent = document.createElement('div');
+    parent.setAttribute('data-testid', 'container');
+    const el = document.createElement('p');
+    el.textContent = 'Text';
+    parent.appendChild(el);
+    document.body.appendChild(parent);
+
+    el.getBoundingClientRect = vi.fn(() => ({
+      left: 0, top: 0, right: 10, bottom: 10,
+      width: 10, height: 10, x: 0, y: 0, toJSON: () => {},
+    }));
+
+    const pin = createPinPosition(5, 5, el);
+    expect(pin.contentFingerprint!.parentSelector).toContain('data-testid');
+
+    document.body.removeChild(parent);
+  });
+
+  it('returns undefined contentFingerprint when element has no text', () => {
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+
+    el.getBoundingClientRect = vi.fn(() => ({
+      left: 0, top: 0, right: 10, bottom: 10,
+      width: 10, height: 10, x: 0, y: 0, toJSON: () => {},
+    }));
+
+    const pin = createPinPosition(5, 5, el);
+    expect(pin.contentFingerprint).toBeUndefined();
+
+    document.body.removeChild(el);
+  });
+});
+
+describe('captureScrollContainers via createPinPosition', () => {
+  beforeEach(() => {
+    vi.stubGlobal('innerWidth', 1000);
+    vi.stubGlobal('scrollY', 0);
+  });
+
+  it('returns empty scrollContainers when no scrollable ancestors exist', () => {
+    const el = document.createElement('div');
+    el.textContent = 'test';
+    document.body.appendChild(el);
+
+    el.getBoundingClientRect = vi.fn(() => ({
+      left: 0, top: 0, right: 10, bottom: 10,
+      width: 10, height: 10, x: 0, y: 0, toJSON: () => {},
+    }));
+
+    const pin = createPinPosition(5, 5, el);
+    expect(pin.scrollContainers).toBeUndefined();
+
+    document.body.removeChild(el);
+  });
+
+  it('captures scrollTop/scrollLeft for a scrollable container', () => {
+    const container = document.createElement('div');
+    container.id = 'scroll-box';
+    container.style.overflowY = 'auto';
+    // Stub scrollHeight > clientHeight so the element is detected as scrollable
+    Object.defineProperty(container, 'scrollHeight', { value: 500, configurable: true });
+    Object.defineProperty(container, 'clientHeight', { value: 200, configurable: true });
+    Object.defineProperty(container, 'scrollTop', { value: 120, configurable: true });
+    Object.defineProperty(container, 'scrollLeft', { value: 0, configurable: true });
+
+    const child = document.createElement('p');
+    child.textContent = 'inside scroller';
+    container.appendChild(child);
+    document.body.appendChild(container);
+
+    child.getBoundingClientRect = vi.fn(() => ({
+      left: 0, top: 0, right: 10, bottom: 10,
+      width: 10, height: 10, x: 0, y: 0, toJSON: () => {},
+    }));
+
+    const pin = createPinPosition(5, 5, child);
+    expect(pin.scrollContainers).toBeDefined();
+    expect(pin.scrollContainers).toHaveLength(1);
+    expect(pin.scrollContainers![0].scrollTop).toBe(120);
+    expect(pin.scrollContainers![0].scrollLeft).toBe(0);
+    expect(pin.scrollContainers![0].selector).toContain('scroll-box');
+
+    document.body.removeChild(container);
+  });
+
+  it('captures multiple nested scrollable containers', () => {
+    const outer = document.createElement('div');
+    outer.id = 'outer-scroll';
+    outer.style.overflowY = 'scroll';
+    Object.defineProperty(outer, 'scrollHeight', { value: 1000, configurable: true });
+    Object.defineProperty(outer, 'clientHeight', { value: 400, configurable: true });
+    Object.defineProperty(outer, 'scrollTop', { value: 50, configurable: true });
+    Object.defineProperty(outer, 'scrollLeft', { value: 0, configurable: true });
+
+    const inner = document.createElement('div');
+    inner.id = 'inner-scroll';
+    inner.style.overflowX = 'auto';
+    Object.defineProperty(inner, 'scrollWidth', { value: 800, configurable: true });
+    Object.defineProperty(inner, 'clientWidth', { value: 300, configurable: true });
+    Object.defineProperty(inner, 'scrollHeight', { value: 100, configurable: true });
+    Object.defineProperty(inner, 'clientHeight', { value: 100, configurable: true });
+    Object.defineProperty(inner, 'scrollTop', { value: 0, configurable: true });
+    Object.defineProperty(inner, 'scrollLeft', { value: 75, configurable: true });
+
+    const child = document.createElement('span');
+    child.textContent = 'deep nested';
+    inner.appendChild(child);
+    outer.appendChild(inner);
+    document.body.appendChild(outer);
+
+    child.getBoundingClientRect = vi.fn(() => ({
+      left: 0, top: 0, right: 10, bottom: 10,
+      width: 10, height: 10, x: 0, y: 0, toJSON: () => {},
+    }));
+
+    const pin = createPinPosition(5, 5, child);
+    expect(pin.scrollContainers).toBeDefined();
+    expect(pin.scrollContainers).toHaveLength(2);
+    // Inner container first (closer to element), outer second
+    expect(pin.scrollContainers![0].scrollLeft).toBe(75);
+    expect(pin.scrollContainers![1].scrollTop).toBe(50);
+
+    document.body.removeChild(outer);
   });
 });

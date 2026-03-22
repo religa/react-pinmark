@@ -2,7 +2,9 @@ import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useCommentContext } from './CommentContext';
 import { useComments } from '../hooks/useComments';
-import { captureViewport } from '../core/screenshot';
+import { captureViewportWithPin } from '../core/screenshot';
+import { captureTargetInfo } from '../core/context-capture';
+import type { TargetInfo } from '../core/context-capture';
 import { Pin } from './Pin';
 import { ThreadPopover } from './ThreadPopover';
 import { ThreadList } from './ThreadList';
@@ -47,6 +49,7 @@ export function CommentOverlay({
     pin: PinPosition;
     left: number;
     top: number;
+    targetInfo: TargetInfo;
   } | null>(null);
   const [highlightedThreadId, setHighlightedThreadId] = useState<string | null>(
     null,
@@ -110,10 +113,11 @@ export function CommentOverlay({
         pin,
         left: e.clientX,
         top: e.clientY + window.scrollY,
+        targetInfo: captureTargetInfo(target),
       });
 
       if (captureScreenshot && attachmentAdapter) {
-        screenshotRef.current = captureViewport();
+        screenshotRef.current = captureViewportWithPin(pin);
       }
     },
     [isCommentMode, captureScreenshot, attachmentAdapter],
@@ -143,6 +147,7 @@ export function CommentOverlay({
           pin: pendingPin.pin,
           body,
           attachments: allAttachments,
+          targetInfo: pendingPin.targetInfo,
         });
         setPendingPin(null);
       } catch {

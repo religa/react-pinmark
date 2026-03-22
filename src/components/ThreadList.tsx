@@ -113,35 +113,43 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
 
   const handleDownload = useCallback(() => {
     const selected = threads.filter((t) => selectedIds.has(t.id));
-    const data = selected.map((t) => ({
-      id: t.id,
-      projectId: t.projectId,
-      pinNumber: getPinNumber(t.id),
-      status: t.status,
-      pageUrl: t.pageUrl,
-      createdAt: t.createdAt,
-      metadata: t.metadata ?? null,
-      pin: {
-        x: t.pin.x,
-        y: t.pin.y,
-        anchorElement: t.pin.selector ?? null,
-        anchorOffset: t.pin.selectorOffset ?? null,
-      },
-      comments: t.comments.map((c) => ({
-        author: c.author.displayName,
-        body: c.body,
-        createdAt: c.createdAt,
-        attachments: c.attachments.map((a) => ({
-          id: a.id,
-          url: a.url,
+    const now = new Date().toISOString();
+    const data = {
+      exportVersion: 1,
+      exportedAt: now,
+      threads: selected.map((t) => ({
+        id: t.id,
+        projectId: t.projectId,
+        pinNumber: getPinNumber(t.id),
+        status: t.status,
+        pageUrl: t.pageUrl,
+        createdAt: t.createdAt,
+        pin: {
+          x: t.pin.x,
+          y: t.pin.y,
+          anchorElement: t.pin.selector ?? null,
+          anchorOffset: t.pin.selectorOffset ?? null,
+          anchorLabel: t.pin.anchorLabel ?? null,
+          contentFingerprint: t.pin.contentFingerprint ?? null,
+          scrollContainers: t.pin.scrollContainers ?? null,
+        },
+        context: t.metadata ?? null,
+        comments: t.comments.map((c) => ({
+          author: c.author.displayName,
+          body: c.body,
+          createdAt: c.createdAt,
+          attachments: c.attachments.map((a) => ({
+            id: a.id,
+            url: a.url,
+          })),
         })),
       })),
-    }));
+    };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `comments-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `comments-${now.slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }, [threads, selectedIds, getPinNumber]);

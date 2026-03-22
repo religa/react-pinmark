@@ -1,4 +1,4 @@
-import type { PinPosition } from './types';
+import type { PinPosition, ScrollContainerInfo } from './types';
 
 export interface ResolvedPosition {
   left: number;
@@ -40,18 +40,19 @@ export function detectSelector(
   target: HTMLElement,
   clientX: number,
   clientY: number,
-): { selector: string; selectorOffset: { x: number; y: number } } | null {
+): { selector: string; selectorOffset: { x: number; y: number }; anchorLabel?: string } | null {
   // 1. Build a precise CSS path from target to nearest id / data-comment-anchor / body.
-  const pathSelector = buildSelectorPath(target);
-  if (pathSelector) {
+  const pathResult = buildSelectorPath(target);
+  if (pathResult) {
     const rect = target.getBoundingClientRect();
     if (rect.width > 0 && rect.height > 0) {
       return {
-        selector: pathSelector,
+        selector: pathResult.selector,
         selectorOffset: {
           x: (clientX - rect.left) / rect.width,
           y: (clientY - rect.top) / rect.height,
         },
+        anchorLabel: pathResult.anchorLabel,
       };
     }
   }
@@ -73,6 +74,7 @@ export function detectSelector(
               x: (clientX - rect.left) / rect.width,
               y: (clientY - rect.top) / rect.height,
             },
+            anchorLabel: anchor ? `anchor:${anchor}` : undefined,
           };
         }
       }
@@ -86,6 +88,15 @@ export function detectSelector(
 /** Common app-root ids that are too broad to be useful anchors. */
 const ROOT_IDS = new Set(['root', 'app', '__next', '__nuxt', 'gatsby-focus-wrapper']);
 
+const LABEL_PREFIXES: Record<string, string> = {
+  'data-comment-anchor': 'anchor',
+  'data-testid': 'testid',
+  'data-id': 'data-id',
+  'data-field': 'field',
+  'data-rowindex': 'rowindex',
+  'name': 'name',
+};
+
 /**
  * Try to produce a unique CSS selector from a single attribute on the element.
  * Checks (in priority order): id, data-comment-anchor, data-testid,
@@ -95,9 +106,9 @@ const ROOT_IDS = new Set(['root', 'app', '__next', '__nuxt', 'gatsby-focus-wrapp
  * For non-id attributes, falls back to tag-qualified selectors
  * (e.g. `div[data-id="42"]`) when the bare attribute isn't globally unique.
  */
-function uniqueAttrSelector(el: HTMLElement): string | null {
+function uniqueAttrSelector(el: HTMLElement): { selector: string; anchorLabel: string } | null {
   if (el.id && !ROOT_IDS.has(el.id)) {
-    return `#${CSS.escape(el.id)}`;
+    return { selector: `#${CSS.escape(el.id)}`, anchorLabel: `#${el.id}` };
   }
 
   const tag = el.tagName.toLowerCase();
@@ -115,9 +126,10 @@ function uniqueAttrSelector(el: HTMLElement): string | null {
     const escaped = CSS.escape(value);
     const attrSel = `[${attr}="${escaped}"]`;
     const tagSel = `${tag}[${attr}="${escaped}"]`;
+    const label = `${LABEL_PREFIXES[attr]}:${value}`;
     try {
-      if (document.querySelectorAll(attrSel).length === 1) return attrSel;
-      if (document.querySelectorAll(tagSel).length === 1) return tagSel;
+      if (document.querySelectorAll(attrSel).length === 1) return { selector: attrSel, anchorLabel: label };
+      if (document.querySelectorAll(tagSel).length === 1) return { selector: tagSel, anchorLabel: label };
     } catch {
       continue;
     }
@@ -132,19 +144,21 @@ function uniqueAttrSelector(el: HTMLElement): string | null {
  * body. Uses `tag:nth-child(n)` at each level, producing selectors like:
  *   [data-testid="users-table"] > tbody:nth-child(1) > tr:nth-child(3) > td:nth-child(2)
  */
-function buildSelectorPath(target: HTMLElement): string | null {
+function buildSelectorPath(target: HTMLElement): { selector: string; anchorLabel?: string } | null {
   if (target === document.body || target === document.documentElement) {
     return null;
   }
 
   const parts: string[] = [];
+  let anchorLabel: string | undefined;
   let el: HTMLElement | null = target;
 
   while (el && el !== document.body && el !== document.documentElement) {
     // Anchor to a unique attribute (id, data-comment-anchor, data-testid, name)
-    const anchorSel = uniqueAttrSelector(el);
-    if (anchorSel) {
-      parts.unshift(anchorSel);
+    const anchor = uniqueAttrSelector(el);
+    if (anchor) {
+      parts.unshift(anchor.selector);
+      anchorLabel = anchor.anchorLabel;
       break;
     }
 
@@ -162,12 +176,80 @@ function buildSelectorPath(target: HTMLElement): string | null {
   const selector = parts.join(' > ');
   try {
     if (document.querySelectorAll(selector).length === 1) {
-      return selector;
+      return { selector, anchorLabel };
     }
   } catch {
     return null;
   }
   return null;
+}
+
+export function simpleHash(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return (hash >>> 0).toString(36).slice(0, 8);
+}
+
+function captureContentFingerprint(element: HTMLElement): PinPosition['contentFingerprint'] {
+  const text = (element.innerText || element.textContent || '').trim();
+  if (!text) return undefined;
+
+  const tagName = element.tagName.toLowerCase();
+  const parent = element.parentElement;
+  let nthOfType = 1;
+  if (parent) {
+    const siblings = Array.from(parent.children).filter(
+      (el) => el.tagName === element.tagName,
+    );
+    nthOfType = siblings.indexOf(element) + 1;
+  }
+
+  let parentSelector: string | undefined;
+  let el: HTMLElement | null = element.parentElement;
+  while (el && el !== document.body) {
+    const anchor = uniqueAttrSelector(el);
+    if (anchor) {
+      parentSelector = anchor.selector;
+      break;
+    }
+    el = el.parentElement;
+  }
+
+  return {
+    textHash: simpleHash(text),
+    tagName,
+    nthOfType,
+    parentSelector,
+  };
+}
+
+function captureScrollContainers(element: HTMLElement): ScrollContainerInfo[] {
+  const containers: ScrollContainerInfo[] = [];
+  let el: HTMLElement | null = element.parentElement;
+
+  while (el && el !== document.documentElement) {
+    const style = window.getComputedStyle(el);
+    const isScrollable =
+      (style.overflowY === 'auto' || style.overflowY === 'scroll' ||
+       style.overflowX === 'auto' || style.overflowX === 'scroll') &&
+      (el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth);
+
+    if (isScrollable) {
+      const selectorResult = buildSelectorPath(el);
+      if (selectorResult) {
+        containers.push({
+          selector: selectorResult.selector,
+          scrollTop: el.scrollTop,
+          scrollLeft: el.scrollLeft,
+        });
+      }
+    }
+    el = el.parentElement;
+  }
+
+  return containers;
 }
 
 /**
@@ -187,6 +269,19 @@ export function createPinPosition(
   if (selectorInfo) {
     pin.selector = selectorInfo.selector;
     pin.selectorOffset = selectorInfo.selectorOffset;
+    if (selectorInfo.anchorLabel) {
+      pin.anchorLabel = selectorInfo.anchorLabel;
+    }
+  }
+
+  const fingerprint = captureContentFingerprint(target);
+  if (fingerprint) {
+    pin.contentFingerprint = fingerprint;
+  }
+
+  const scrollCont = captureScrollContainers(target);
+  if (scrollCont.length > 0) {
+    pin.scrollContainers = scrollCont;
   }
 
   return pin;

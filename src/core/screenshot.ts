@@ -1,3 +1,6 @@
+import type { PinPosition } from './types';
+import { resolvePin } from './pin-resolver';
+
 export interface CaptureOptions {
   quality?: number;  // JPEG quality 0–1, default 0.8
   maxWidth?: number; // scale down if viewport wider than this, default 1920
@@ -61,5 +64,36 @@ export async function captureViewport(options?: CaptureOptions): Promise<Blob | 
   } catch (err) {
     console.warn('[react-pinmark] Screenshot capture failed:', err);
     return null;
+  }
+}
+
+/**
+ * Captures the viewport with a visible pin marker and the pin scrolled into view.
+ * Injects a temporary marker element at the pin's resolved coordinates,
+ * scrolls so the pin is centered, captures, then cleans up.
+ */
+export async function captureViewportWithPin(
+  pin: PinPosition,
+  options?: CaptureOptions,
+): Promise<Blob | null> {
+  const resolved = resolvePin(pin);
+
+  // Scroll so the pin is roughly centered in the viewport
+  const savedScrollY = window.scrollY;
+  const targetScrollY = Math.max(0, resolved.top - window.innerHeight / 2);
+  window.scrollTo({ top: targetScrollY, behavior: 'instant' });
+
+  // Inject marker at the pin location
+  const marker = document.createElement('div');
+  marker.className = 'rc-screenshot-marker';
+  marker.style.left = `${resolved.left}px`;
+  marker.style.top = `${resolved.top}px`;
+  document.body.appendChild(marker);
+
+  try {
+    return await captureViewport(options);
+  } finally {
+    marker.remove();
+    window.scrollTo({ top: savedScrollY, behavior: 'instant' });
   }
 }

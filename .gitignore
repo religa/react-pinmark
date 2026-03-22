@@ -19,6 +19,7 @@ coverage/
 tmp/
 ref/
 docs/
+c/
 
 # macOS
 .DS_Store
