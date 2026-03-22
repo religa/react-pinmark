@@ -311,6 +311,65 @@ export const myBackend: BackendAdapter = {
               to trigger a manual refresh from anywhere in your app.
             </p>
           </section>
+
+          {/* Section 05 — CLI & MCP */}
+          <section className="demo-section" data-comment-anchor="cli-mcp">
+            <div className="demo-section-header">
+              <span className="demo-section-num">05</span>
+              <h2 className="demo-section-title">CLI &amp; MCP server</h2>
+            </div>
+            <p className="demo-prose">
+              Manage threads outside the browser. The CLI lets you list, resolve,
+              and export threads from the terminal. The MCP server exposes the
+              same operations to AI assistants like Claude Code and Cursor.
+            </p>
+            <div className="demo-code-block">
+              <div className="demo-code-header">
+                <span className="demo-code-filename">terminal</span>
+                <div className="demo-code-dots">
+                  <span /><span /><span />
+                </div>
+              </div>
+              <pre className="demo-code-pre"><code>{`# List open threads
+npx react-pinmark threads list --status open
+
+# Reply to a thread
+npx react-pinmark comments add <thread-id> --body "Fixed!"
+
+# Export all feedback as Markdown
+npx react-pinmark export --format markdown`}</code></pre>
+            </div>
+            <p className="demo-prose">
+              The MCP server ships as <code>react-pinmark-mcp</code> and speaks
+              the{' '}
+              <a href="https://modelcontextprotocol.io/" target="_blank" rel="noopener noreferrer">
+                Model Context Protocol
+              </a>{' '}
+              over stdio. Add it to your editor's MCP config and your AI
+              assistant can list threads, add comments, resolve issues, and
+              export reports — all without leaving the conversation.
+            </p>
+            <div className="demo-code-block">
+              <div className="demo-code-header">
+                <span className="demo-code-filename">.claude/settings.json</span>
+                <div className="demo-code-dots">
+                  <span /><span /><span />
+                </div>
+              </div>
+              <pre className="demo-code-pre"><code>{`{
+  "mcpServers": {
+    "pinmark": {
+      "command": "react-pinmark-mcp",
+      "env": {
+        "PINMARK_SUPABASE_URL": "https://...",
+        "PINMARK_SUPABASE_ANON_KEY": "eyJ...",
+        "PINMARK_PROJECT_ID": "my-app"
+      }
+    }
+  }
+}`}</code></pre>
+            </div>
+          </section>
         </main>
 
         {/* ── Hint card ───────────────────────────────────────── */}

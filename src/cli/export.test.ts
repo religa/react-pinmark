@@ -1,8 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { BackendAdapter } from '../adapters/adapter';
 import type { Thread } from '../core/types';
-import { exportThreads } from './export';
+import { exportThreads, exportCommand } from './export';
 import type { ExportResult } from './export';
+import type { PinmarkConfig } from './config';
 
 function makeThread(overrides: Partial<Thread> = {}): Thread {
   return {
@@ -107,6 +108,53 @@ describe('exportThreads', () => {
 
       expect(output).toContain('# Feedback Report — test');
       expect(output).toContain('Threads: 0 (open: 0, resolved: 0)');
+    });
+  });
+});
+
+describe('exportCommand', () => {
+  const config: PinmarkConfig = {
+    supabaseUrl: 'https://test.supabase.co',
+    supabaseAnonKey: 'test-key',
+    projectId: 'test',
+  };
+  let consoleSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  it('defaults to JSON format', async () => {
+    const adapter = createMockAdapter([makeThread()]);
+    await exportCommand(adapter, config, {});
+    const output = consoleSpy.mock.calls[0][0] as string;
+    const parsed = JSON.parse(output);
+    expect(parsed.projectId).toBe('test');
+    expect(parsed.threads).toHaveLength(1);
+  });
+
+  it('outputs markdown when format=markdown', async () => {
+    const adapter = createMockAdapter([makeThread()]);
+    await exportCommand(adapter, config, { format: 'markdown' });
+    const output = consoleSpy.mock.calls[0][0] as string;
+    expect(output).toContain('# Feedback Report');
+  });
+
+  it('defaults to json for invalid format', async () => {
+    const adapter = createMockAdapter([]);
+    await exportCommand(adapter, config, { format: 'csv' });
+    const output = consoleSpy.mock.calls[0][0] as string;
+    const parsed = JSON.parse(output);
+    expect(parsed.projectId).toBe('test');
+  });
+
+  it('passes status and page filters', async () => {
+    const adapter = createMockAdapter([]);
+    await exportCommand(adapter, config, { status: 'open', page: '/about' });
+    expect(adapter.getThreads).toHaveBeenCalledWith({
+      projectId: 'test',
+      status: 'open',
+      pageUrl: '/about',
     });
   });
 });

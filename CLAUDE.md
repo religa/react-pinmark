@@ -5,7 +5,7 @@ Embeddable pin-based commenting overlay for React applications. Fully implemente
 ## Commands
 
 ```bash
-npm test          # vitest (126 tests across 15 files)
+npm test          # vitest (220 tests across 19 files)
 npm run build     # tsup — ESM + CJS + DTS + CSS
 npm run typecheck # tsc --noEmit
 npm run lint      # eslint src/
@@ -23,6 +23,16 @@ page reloads. Clear the key in DevTools to reset.
 ```bash
 cd demo && npm install   # first time only
 npm run demo             # from project root, or: cd demo && npm run dev
+```
+
+### CLI & MCP with the demo
+
+The CLI and MCP server work against any Supabase backend. To use them with the demo's
+Supabase instance, create a `.pinmarkrc` or set `PINMARK_*` env vars, then:
+
+```bash
+npx react-pinmark threads list              # CLI
+node dist/mcp/index.js                      # MCP server (stdio)
 ```
 
 ## Project Structure
@@ -52,6 +62,17 @@ src/
 │   └── ThreadList.tsx        slide-in panel, page/status filters, thread rows, navigate-to-pin
 ├── hooks/
 │   └── useComments.ts        full UseComments API — state selectors + all actions
+├── cli/
+│   ├── index.ts              CLI entry point (parseArgs, command dispatch)
+│   ├── config.ts             resolveConfig() — dotfiles, env vars, source scan
+│   ├── client.ts             createCliAdapter() — dynamic Supabase import
+│   ├── commands.ts           thread/comment CRUD commands
+│   ├── export.ts             export command (JSON/Markdown)
+│   ├── format.ts             table formatters for CLI output
+│   └── source-scan.ts        scanProjectId() — find projectId in source files
+├── mcp/
+│   ├── index.ts              MCP server entry point (stdio transport)
+│   └── tools.ts              8 MCP tool definitions + handlers (reuses adapter + config)
 ├── styles/
 │   └── base.css              rc- prefixed CSS, custom properties, dark mode, markdown styles
 └── index.ts                  public barrel: CommentProvider, CommentOverlay, ThreadList, useComments, types
@@ -85,6 +106,8 @@ src/
 | Context value shape | `src/components/CommentContext.ts` |
 | Pin position math | `src/core/pin-resolver.ts` |
 | Supabase backend | `src/adapters/supabase/index.ts` |
+| CLI entry + config | `src/cli/index.ts`, `src/cli/config.ts` |
+| MCP server | `src/mcp/index.ts`, `src/mcp/tools.ts` |
 | All CSS + dark mode | `src/styles/base.css` |
 
 ## Bundle
@@ -95,6 +118,9 @@ src/
 - `html-to-image` is lazily imported at runtime — only loaded when `captureViewport()` is first called
 - Supabase adapter: separate entry point (`react-pinmark/supabase`), tree-shakeable
 - `@supabase/supabase-js` is a peer dep — not bundled
+- CLI ships at `dist/cli/index.js` — bin `react-pinmark`
+- MCP server ships at `dist/mcp/index.js` — bin `react-pinmark-mcp`; `@modelcontextprotocol/sdk` is a devDep (bundled into binary)
+- CLI and MCP are excluded from the library ESM build (`!src/cli/**`, `!src/mcp/**` in tsup)
 
 ## Design Principles
 

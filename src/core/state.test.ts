@@ -97,4 +97,31 @@ describe('CommentStore', () => {
     store.getState().setLoading(true);
     expect(store.getState().isLoading).toBe(true);
   });
+
+  it('removeThread removes a thread by id', () => {
+    const store = createCommentStore();
+    store.getState().setThreads([makeThread({ id: 'a' }), makeThread({ id: 'b' })]);
+    store.getState().removeThread('a');
+    expect(store.getState().threads).toHaveLength(1);
+    expect(store.getState().threads[0].id).toBe('b');
+  });
+
+  it('removeThread clears activeThread if it matches removed id', () => {
+    const store = createCommentStore();
+    const t = makeThread({ id: 'a' });
+    store.getState().setThreads([t]);
+    store.getState().setActiveThread(t);
+    store.getState().removeThread('a');
+    expect(store.getState().activeThread).toBeNull();
+  });
+
+  it('removeThread does not clear activeThread if ids differ', () => {
+    const store = createCommentStore();
+    const t1 = makeThread({ id: 'a' });
+    const t2 = makeThread({ id: 'b' });
+    store.getState().setThreads([t1, t2]);
+    store.getState().setActiveThread(t1);
+    store.getState().removeThread('b');
+    expect(store.getState().activeThread?.id).toBe('a');
+  });
 });
