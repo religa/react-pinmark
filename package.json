@@ -1,6 +1,6 @@
 {
   "name": "react-pinmark",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Embeddable commenting overlay for React applications",
   "license": "MIT",
   "author": "react-pinmark contributors",
