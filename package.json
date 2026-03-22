@@ -50,7 +50,20 @@
         "types": "./dist/esm/adapters/supabase/index.d.ts",
         "default": "./dist/cjs/supabase.cjs"
       }
+    },
+    "./utils": {
+      "import": {
+        "types": "./dist/esm/utils/index.d.ts",
+        "default": "./dist/esm/utils/index.js"
+      },
+      "require": {
+        "types": "./dist/esm/utils/index.d.ts",
+        "default": "./dist/cjs/utils.cjs"
+      }
     }
+  },
+  "bin": {
+    "react-pinmark": "./dist/cli/index.js"
   },
   "files": [
     "dist"
@@ -84,6 +97,7 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
+    "@types/node": "^25.5.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "eslint": "^9.0.0",

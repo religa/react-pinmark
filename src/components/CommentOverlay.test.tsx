@@ -16,8 +16,10 @@ function createMockBackend(threads: Thread[] = []): BackendAdapter {
     getThreads: vi.fn().mockResolvedValue(threads),
     createThread: vi.fn(),
     updateThread: vi.fn(),
+    deleteThread: vi.fn(),
     getComments: vi.fn().mockResolvedValue([]),
     createComment: vi.fn(),
+    deleteComment: vi.fn(),
   };
 }
 
@@ -205,8 +207,10 @@ function createMockBackendWithCreate(): BackendAdapter {
       comments: [],
     }),
     updateThread: vi.fn(),
+    deleteThread: vi.fn(),
     getComments: vi.fn().mockResolvedValue([]),
     createComment: vi.fn(),
+    deleteComment: vi.fn(),
   };
 }
 

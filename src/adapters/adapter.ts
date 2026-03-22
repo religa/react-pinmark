@@ -17,6 +17,7 @@ export interface BackendAdapter {
   deleteThread(id: string): Promise<void>;
   getComments(threadId: string): Promise<Comment[]>;
   createComment(input: CreateCommentInput): Promise<Comment>;
+  deleteComment(id: string): Promise<void>;
 }
 
 export interface AttachmentAdapter {

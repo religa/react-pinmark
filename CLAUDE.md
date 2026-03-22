@@ -37,7 +37,7 @@ src/
 │   ├── pin-resolver.ts       resolvePin(), detectSelector(), createPinPosition()
 │   └── screenshot.ts         captureViewport() — lazy html-to-image capture; hides .rc-root + rc-screenshot-hide elements
 ├── adapters/
-│   ├── adapter.ts            BackendAdapter (6 methods) + AttachmentAdapter (uploadAttachment) interfaces
+│   ├── adapter.ts            BackendAdapter (7 methods) + AttachmentAdapter (uploadAttachment) interfaces
 │   └── supabase/
 │       ├── index.ts          createSupabaseAdapter — implements both interfaces; asPromise() helper
 │       └── migrations/       001_create_threads.sql, 002_create_comments.sql, 003_create_storage.sql

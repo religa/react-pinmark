@@ -6,6 +6,7 @@ function createMockSupabase() {
     select: vi.fn().mockReturnThis(),
     insert: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
+    delete: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
     single: vi.fn().mockReturnThis(),
@@ -204,6 +205,32 @@ describe('createSupabaseAdapter', () => {
       const adapter = createSupabaseAdapter({ supabaseClient: client as any });
       const thread = await adapter.updateThread('t1', { status: 'resolved' });
       expect(thread.status).toBe('resolved');
+    });
+  });
+
+  describe('deleteComment', () => {
+    it('deletes a comment by id', async () => {
+      const { client, mockQuery } = createMockSupabase();
+      mockQuery.then.mockImplementation((resolve: Function) => {
+        resolve({ data: null, error: null });
+      });
+
+      const adapter = createSupabaseAdapter({ supabaseClient: client as any });
+      await adapter.deleteComment('c1');
+
+      expect(client.from).toHaveBeenCalledWith('rc_comments');
+      expect(mockQuery.delete).toHaveBeenCalled();
+      expect(mockQuery.eq).toHaveBeenCalledWith('id', 'c1');
+    });
+
+    it('throws on error', async () => {
+      const { client, mockQuery } = createMockSupabase();
+      mockQuery.then.mockImplementation((resolve: Function) => {
+        resolve({ data: null, error: { message: 'Delete failed' } });
+      });
+
+      const adapter = createSupabaseAdapter({ supabaseClient: client as any });
+      await expect(adapter.deleteComment('c1')).rejects.toThrow('Delete failed');
     });
   });
 

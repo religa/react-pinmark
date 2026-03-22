@@ -33,6 +33,7 @@ export interface UseComments {
   resolveThread(threadId: string): Promise<void>;
   unresolveThread(threadId: string): Promise<void>;
   deleteThread(threadId: string): Promise<void>;
+  deleteComment(commentId: string, threadId: string): Promise<void>;
   refreshThreads(): Promise<void>;
   setFilter(filter: Partial<ThreadFilter>): void;
 }
@@ -193,6 +194,15 @@ export function useComments(): UseComments {
     [store, backend],
   );
 
+  const deleteComment = useCallback(
+    async (commentId: string, threadId: string) => {
+      await backend.deleteComment(commentId);
+      const comments = await backend.getComments(threadId);
+      store.getState().updateThread(threadId, { comments });
+    },
+    [store, backend],
+  );
+
   const setFilter = useCallback(
     (newFilter: Partial<ThreadFilter>) => {
       store.getState().setFilter(newFilter);
@@ -217,6 +227,7 @@ export function useComments(): UseComments {
     resolveThread,
     unresolveThread,
     deleteThread,
+    deleteComment,
     refreshThreads,
     setFilter,
   };

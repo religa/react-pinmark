@@ -191,6 +191,13 @@ export function createSupabaseAdapter(
       return mapComment(data as Record<string, unknown>);
     },
 
+    async deleteComment(id: string): Promise<void> {
+      const { error } = await asPromise<unknown>(
+        sb.from('rc_comments').delete().eq('id', id),
+      );
+      if (error) throw new Error(error.message);
+    },
+
     async deleteThread(id: string): Promise<void> {
       // Delete comments first (in case there's no DB-level cascade)
       const { error: commentsError } = await asPromise<unknown>(

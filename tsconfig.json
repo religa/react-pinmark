@@ -16,7 +16,8 @@
     "baseUrl": ".",
     "paths": {
       "react-pinmark": ["./src/index.ts"],
-      "react-pinmark/supabase": ["./src/adapters/supabase/index.ts"]
+      "react-pinmark/supabase": ["./src/adapters/supabase/index.ts"],
+      "react-pinmark/utils": ["./src/utils/index.ts"]
     }
   },
   "include": ["src/**/*"],
