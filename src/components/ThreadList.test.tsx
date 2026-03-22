@@ -254,6 +254,53 @@ describe('ThreadList', () => {
     });
   });
 
+  it('shows page URL when page filter is set to all pages', async () => {
+    const threads = [
+      makeThread({ id: 't1', pageUrl: '/page' }),
+      makeThread({
+        id: 't2',
+        pageUrl: '/about',
+        comments: [
+          {
+            id: 'c2',
+            threadId: 't2',
+            author: { displayName: 'Bob' },
+            body: 'About page comment',
+            attachments: [],
+            createdAt: '2024-01-01T00:00:00Z',
+          },
+        ],
+      }),
+    ];
+    renderThreadList(createMockBackend(threads));
+
+    // Default filter is "All pages" — page URL should be shown
+    await waitFor(() => {
+      expect(screen.getByText('/page')).toBeInTheDocument();
+      expect(screen.getByText('/about')).toBeInTheDocument();
+    });
+  });
+
+  it('hides page URL when page filter is set to current page', async () => {
+    const threads = [makeThread({ id: 't1', pageUrl: '/page' })];
+    renderThreadList(createMockBackend(threads));
+
+    await waitFor(() => {
+      expect(screen.getByText('Hello world')).toBeInTheDocument();
+    });
+
+    // Default "All pages" shows page URL
+    expect(screen.getByText('/page')).toBeInTheDocument();
+
+    // Switch to "Current page"
+    fireEvent.change(screen.getByLabelText('Page filter'), {
+      target: { value: 'current' },
+    });
+
+    // Page URL should no longer be shown
+    expect(screen.queryByText('/page')).not.toBeInTheDocument();
+  });
+
   it('closes on Escape key when open', async () => {
     const backend = createMockBackend([makeThread()]);
     const { container } = render(

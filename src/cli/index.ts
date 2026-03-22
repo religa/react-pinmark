@@ -58,7 +58,7 @@ async function main() {
     supabaseAnonKey: values['supabase-key'],
   });
 
-  const adapter = await createCliAdapter(config);
+  const adapter = createCliAdapter(config);
   const [command, subcommand, arg] = positionals;
 
   const opts = {

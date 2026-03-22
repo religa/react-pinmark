@@ -65,7 +65,7 @@ src/
 ├── cli/
 │   ├── index.ts              CLI entry point (parseArgs, command dispatch)
 │   ├── config.ts             resolveConfig() — dotfiles, env vars, source scan
-│   ├── client.ts             createCliAdapter() — dynamic Supabase import
+│   ├── client.ts             createCliAdapter() — Supabase client bridge (bundled into CLI/MCP)
 │   ├── commands.ts           thread/comment CRUD commands
 │   ├── export.ts             export command (JSON/Markdown)
 │   ├── format.ts             table formatters for CLI output
@@ -87,6 +87,7 @@ src/
 - **Supabase adapter** wraps Supabase's thenable query builder in a real `Promise` via `asPromise()`.
 - **Attachment flow**: `attachmentAdapter` is optional in context. Composer detects its presence to show/hide the upload UI.
 - **Screenshot capture**: `captureViewport()` in `screenshot.ts` lazily imports `html-to-image` so it's excluded from the initial bundle. Fired on pin click when `captureScreenshot && attachmentAdapter`. `html-to-image`'s `filter` callback excludes `.rc-root` and `.rc-screenshot-hide` elements. `screenshotRef` is a ref (not state) to avoid re-renders; cleared on Escape and after submit. A 10-second timeout prevents hangs if the capture promise never resolves.
+- **Cross-page navigation**: `CommentOverlay` accepts an optional `onNavigatePage` callback. When a user clicks a thread from a different page in the ThreadList, the callback is invoked with the target `pageUrl`. SPA apps provide their router's navigate function; without it, falls back to `window.location.href`. A `pendingNavigateThreadId` state + effect handles scrolling to the pin after the page transition. MPA fallback persists the pending thread in `sessionStorage` (`rc_pending_thread` key) and reads it on mount.
 - **CSS** ships as `dist/index.css` — consumers must import it separately.
 
 ## Test Conventions
@@ -117,7 +118,7 @@ src/
 - CSS ships at `dist/index.css` — consumers import `react-pinmark/styles`
 - `html-to-image` is lazily imported at runtime — only loaded when `captureViewport()` is first called
 - Supabase adapter: separate entry point (`react-pinmark/supabase`), tree-shakeable
-- `@supabase/supabase-js` is a peer dep — not bundled
+- `@supabase/supabase-js` is an optional peer dep for library consumers; bundled into CLI/MCP binaries
 - CLI ships at `dist/cli/index.js` — bin `react-pinmark`
 - MCP server ships at `dist/mcp/index.js` — bin `react-pinmark-mcp`; `@modelcontextprotocol/sdk` is a devDep (bundled into binary)
 - CLI and MCP are excluded from the library ESM build (`!src/cli/**`, `!src/mcp/**` in tsup)

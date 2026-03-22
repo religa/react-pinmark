@@ -302,6 +302,9 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
                       {thread.status}
                     </span>
                   </div>
+                  {!filter.pageUrl && (
+                    <div className="rc-thread-list-item-page">{thread.pageUrl}</div>
+                  )}
                 </button>
               </div>
             );

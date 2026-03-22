@@ -20,12 +20,17 @@ export interface CommentOverlayProps {
   zIndex?: number;
   /** Key that toggles comment mode. Pass null to disable the keyboard shortcut. Default: 'c' */
   shortcutKey?: string | null;
+  /** Called when navigating to a thread on a different page. SPA apps should provide their router's navigate function. Falls back to window.location.href. */
+  onNavigatePage?: (pageUrl: string) => void;
 }
+
+const PENDING_THREAD_KEY = 'rc_pending_thread';
 
 export function CommentOverlay({
   hideResolved = true,
   zIndex = 10000,
   shortcutKey = 'c',
+  onNavigatePage,
 }: CommentOverlayProps) {
   const { enabled, colorScheme, captureScreenshot, attachmentAdapter } = useCommentContext();
   const {
@@ -55,6 +60,7 @@ export function CommentOverlay({
     null,
   );
   const [toastError, setToastError] = useState<string | null>(null);
+  const [pendingNavigateThreadId, setPendingNavigateThreadId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!toastError) return;
@@ -168,19 +174,75 @@ export function CommentOverlay({
     [replyToThread],
   );
 
-  const handleNavigateToThread = useCallback(
+  const scrollToThread = useCallback(
     (threadId: string) => {
       const thread = threads.find((t) => t.id === threadId);
       if (!thread) return;
-      closeThreadList();
       openThread(threadId);
       const pos = resolvePin(thread.pin);
       window.scrollTo({ top: Math.max(0, pos.top - 100), behavior: 'smooth' });
       setHighlightedThreadId(threadId);
       setTimeout(() => setHighlightedThreadId(null), 2400);
     },
-    [threads, closeThreadList, openThread],
+    [threads, openThread],
   );
+
+  const handleNavigateToThread = useCallback(
+    (threadId: string) => {
+      const thread = threads.find((t) => t.id === threadId);
+      if (!thread) return;
+      closeThreadList();
+
+      if (thread.pageUrl === currentPage) {
+        scrollToThread(threadId);
+        return;
+      }
+
+      // Cross-page navigation
+      setPendingNavigateThreadId(threadId);
+      if (onNavigatePage) {
+        onNavigatePage(thread.pageUrl);
+      } else {
+        try {
+          sessionStorage.setItem(
+            PENDING_THREAD_KEY,
+            JSON.stringify({ threadId, ts: Date.now() }),
+          );
+        } catch { /* sessionStorage unavailable */ }
+        window.location.href = thread.pageUrl;
+      }
+    },
+    [threads, currentPage, closeThreadList, scrollToThread, onNavigatePage],
+  );
+
+  // SPA: after navigation, scroll to the pending thread once it's on the current page
+  useEffect(() => {
+    if (!pendingNavigateThreadId) return;
+
+    // Clear stale pending state if navigation never completes
+    const timer = setTimeout(() => setPendingNavigateThreadId(null), 5000);
+
+    const thread = threads.find((t) => t.id === pendingNavigateThreadId);
+    if (thread && thread.pageUrl === currentPage) {
+      setPendingNavigateThreadId(null);
+      requestAnimationFrame(() => scrollToThread(pendingNavigateThreadId));
+    }
+
+    return () => clearTimeout(timer);
+  }, [currentPage, pendingNavigateThreadId, threads, scrollToThread]);
+
+  // MPA: on mount, check sessionStorage for a pending thread from a page reload
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(PENDING_THREAD_KEY);
+      if (!raw) return;
+      sessionStorage.removeItem(PENDING_THREAD_KEY);
+      const { threadId, ts } = JSON.parse(raw) as { threadId: string; ts: number };
+      if (Date.now() - ts < 10_000) {
+        setPendingNavigateThreadId(threadId);
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   if (!enabled) return null;
 

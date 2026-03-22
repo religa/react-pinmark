@@ -193,6 +193,121 @@ describe('CommentOverlay', () => {
   });
 });
 
+describe('CommentOverlay — cross-page navigation', () => {
+  beforeEach(() => {
+    vi.stubGlobal('innerWidth', 1000);
+    vi.stubGlobal('scrollY', 0);
+    vi.stubGlobal('scrollTo', vi.fn());
+    sessionStorage.clear();
+  });
+
+  it('scrolls to pin when clicking a thread on the current page', async () => {
+    const thread = makeThread({ pageUrl: '/' });
+    const backend = createMockBackend([thread]);
+
+    render(
+      <CommentProvider backend={backend} projectId="test">
+        <CommentOverlay />
+      </CommentProvider>,
+    );
+
+    // Open thread list
+    const listBtn = await screen.findByLabelText('Open thread list');
+    fireEvent.click(listBtn);
+
+    // Click the thread row
+    await waitFor(() => {
+      expect(screen.getByText('Test comment')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Open thread/ }));
+
+    // Should scroll to the pin
+    expect(window.scrollTo).toHaveBeenCalled();
+  });
+
+  it('calls onNavigatePage when clicking a thread on a different page', async () => {
+    const thread = makeThread({ pageUrl: '/other' });
+    const backend = createMockBackend([thread]);
+    const onNavigatePage = vi.fn();
+
+    render(
+      <CommentProvider backend={backend} projectId="test">
+        <CommentOverlay onNavigatePage={onNavigatePage} />
+      </CommentProvider>,
+    );
+
+    // Open thread list
+    const listBtn = await screen.findByLabelText('Open thread list');
+    fireEvent.click(listBtn);
+
+    // Click the thread row
+    await waitFor(() => {
+      expect(screen.getByText('Test comment')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Open thread/ }));
+
+    expect(onNavigatePage).toHaveBeenCalledWith('/other');
+  });
+
+  it('writes to sessionStorage when no onNavigatePage is provided and thread is on different page', async () => {
+    const thread = makeThread({ pageUrl: '/other' });
+    const backend = createMockBackend([thread]);
+
+    // Mock window.location as writable
+    const locationAssign = vi.fn();
+    Object.defineProperty(window, 'location', {
+      value: { pathname: '/', href: '/', assign: locationAssign },
+      writable: true,
+      configurable: true,
+    });
+
+    render(
+      <CommentProvider backend={backend} projectId="test">
+        <CommentOverlay />
+      </CommentProvider>,
+    );
+
+    // Open thread list
+    const listBtn = await screen.findByLabelText('Open thread list');
+    fireEvent.click(listBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Test comment')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Open thread/ }));
+
+    const stored = sessionStorage.getItem('rc_pending_thread');
+    expect(stored).toBeTruthy();
+    const parsed = JSON.parse(stored!);
+    expect(parsed.threadId).toBe('thread-1');
+  });
+
+  it('does not scroll when thread is on a different page', async () => {
+    const thread = makeThread({ pageUrl: '/other' });
+    const backend = createMockBackend([thread]);
+    const onNavigatePage = vi.fn();
+
+    render(
+      <CommentProvider backend={backend} projectId="test">
+        <CommentOverlay onNavigatePage={onNavigatePage} />
+      </CommentProvider>,
+    );
+
+    // Open thread list and click thread from different page
+    const listBtn = await screen.findByLabelText('Open thread list');
+    fireEvent.click(listBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Test comment')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Open thread/ }));
+
+    // Should call onNavigatePage instead of scrolling
+    expect(onNavigatePage).toHaveBeenCalledWith('/other');
+    expect(window.scrollTo).not.toHaveBeenCalled();
+  });
+});
+
 // Helper to create a backend mock that returns a valid thread on createThread
 function createMockBackendWithCreate(): BackendAdapter {
   return {

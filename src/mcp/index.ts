@@ -19,7 +19,7 @@ function readVersion(): string {
 
 async function main() {
   const config = resolveConfig();
-  const adapter = await createCliAdapter(config);
+  const adapter = createCliAdapter(config);
 
   const server = new Server(
     { name: 'react-pinmark', version: readVersion() },
