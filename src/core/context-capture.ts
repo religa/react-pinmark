@@ -11,7 +11,12 @@ export interface TargetInfo {
 
 export interface CapturedContext {
   viewport: { width: number; height: number };
+  screen?: { width: number; height: number };
+  devicePixelRatio?: number;
   userAgent: string;
+  url?: string;
+  lang?: string;
+  colorScheme?: 'light' | 'dark';
   timestamp: string;
   pageTitle?: string;
   targetElement?: TargetInfo;
@@ -181,12 +186,21 @@ export function captureContext(
   customProvider?: () => Record<string, unknown>,
   targetInfo?: TargetInfo,
 ): CapturedContext {
+  const colorScheme = window.matchMedia?.('(prefers-color-scheme: dark)').matches
+    ? 'dark' as const
+    : 'light' as const;
+
   const ctx: CapturedContext = {
     viewport: {
       width: window.innerWidth,
       height: window.innerHeight,
     },
+    screen: window.screen ? { width: window.screen.width, height: window.screen.height } : undefined,
+    devicePixelRatio: window.devicePixelRatio || 1,
     userAgent: navigator.userAgent,
+    url: window.location.href,
+    lang: document.documentElement.lang || undefined,
+    colorScheme,
     timestamp: new Date().toISOString(),
     pageTitle: document.title || undefined,
   };

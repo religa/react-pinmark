@@ -5,7 +5,7 @@ Embeddable pin-based commenting overlay for React applications. Fully implemente
 ## Commands
 
 ```bash
-npm test          # vitest (220 tests across 19 files)
+npm test          # vitest (290 tests across 23 files)
 npm run build     # tsup — ESM + CJS + DTS + CSS
 npm run typecheck # tsc --noEmit
 npm run lint      # eslint src/

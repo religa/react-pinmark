@@ -3,7 +3,9 @@ import { resolvePin } from './pin-resolver';
 
 export interface CaptureOptions {
   quality?: number;  // JPEG quality 0–1, default 0.8
-  maxWidth?: number; // scale down if viewport wider than this, default 1920
+  maxWidth?: number; // cap output pixel width (viewport × devicePixelRatio), default 1920
+  /** Use devicePixelRatio for sharper captures on HiDPI displays. Default true. */
+  useDevicePixelRatio?: boolean;
 }
 
 function dataUrlToBlob(dataUrl: string): Blob {
@@ -18,6 +20,73 @@ function dataUrlToBlob(dataUrl: string): Blob {
 }
 
 /**
+ * Finds all elements with non-zero scroll positions and applies CSS transforms
+ * to their children to simulate the scroll. This is needed because html-to-image
+ * clones the DOM, and scroll positions (scrollLeft/scrollTop) — which are runtime
+ * state, not HTML attributes — are lost during cloning. CSS inline transforms ARE
+ * preserved in the clone.
+ *
+ * Returns a cleanup function that restores original DOM state.
+ */
+function preserveScrollPositions(): () => void {
+  const restoreFns: Array<() => void> = [];
+
+  const walker = document.createTreeWalker(
+    document.documentElement,
+    NodeFilter.SHOW_ELEMENT,
+    {
+      acceptNode: (node) => {
+        if ((node as Element).classList?.contains('rc-root')) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    },
+  );
+
+  let current = walker.nextNode();
+  while (current) {
+    // Skip document.body — main window scroll is handled separately via the
+    // style.transform option passed to toJpeg().
+    if (
+      current !== document.body &&
+      current instanceof HTMLElement &&
+      (current.scrollLeft > 0 || current.scrollTop > 0)
+    ) {
+      const el = current;
+      const savedScrollLeft = el.scrollLeft;
+      const savedScrollTop = el.scrollTop;
+      const childRestores: Array<() => void> = [];
+
+      // Apply negative transforms to direct children to simulate scroll position.
+      // With scrollLeft/scrollTop reset to 0 and children shifted by the scroll
+      // amount, the visual result is identical to the original scrolled state.
+      for (const child of Array.from(el.children)) {
+        if (child instanceof HTMLElement || child instanceof SVGElement) {
+          const saved = child.style.transform;
+          const tx = savedScrollLeft > 0 ? `-${savedScrollLeft}px` : '0';
+          const ty = savedScrollTop > 0 ? `-${savedScrollTop}px` : '0';
+          child.style.transform = `translate(${tx}, ${ty})${saved ? ` ${saved}` : ''}`;
+          childRestores.push(() => { child.style.transform = saved; });
+        }
+      }
+
+      // Reset scroll to 0 so the live DOM matches the transforms we just applied
+      // (prevents a visual double-shift while capture is in progress).
+      el.scrollLeft = 0;
+      el.scrollTop = 0;
+
+      restoreFns.push(() => {
+        for (const fn of childRestores) fn();
+        el.scrollLeft = savedScrollLeft;
+        el.scrollTop = savedScrollTop;
+      });
+    }
+    current = walker.nextNode();
+  }
+
+  return () => { for (const fn of restoreFns) fn(); };
+}
+
+/**
  * Captures the current viewport as a JPEG Blob.
  * Excludes .rc-root (overlay chrome) and .rc-screenshot-hide elements
  * via html-to-image's filter callback so the live page is never visually
@@ -27,13 +96,17 @@ function dataUrlToBlob(dataUrl: string): Blob {
 export async function captureViewport(options?: CaptureOptions): Promise<Blob | null> {
   const quality = options?.quality ?? 0.8;
   const maxWidth = options?.maxWidth ?? 1920;
+  const useDevicePixelRatio = options?.useDevicePixelRatio ?? true;
 
+  const restoreScrolls = preserveScrollPositions();
   try {
     const { toJpeg } = await import('html-to-image');
 
-    const pixelRatio = window.innerWidth > maxWidth
+    const dpr = useDevicePixelRatio ? (window.devicePixelRatio || 1) : 1;
+    const nativeWidth = window.innerWidth * dpr;
+    const pixelRatio = nativeWidth > maxWidth
       ? maxWidth / window.innerWidth
-      : 1;
+      : dpr;
 
     // 1x1 transparent JPEG used when cross-origin images can't be inlined.
     // Prevents Firefox (and other strict browsers) from tainting the canvas
@@ -64,6 +137,8 @@ export async function captureViewport(options?: CaptureOptions): Promise<Blob | 
   } catch (err) {
     console.warn('[react-pinmark] Screenshot capture failed:', err);
     return null;
+  } finally {
+    restoreScrolls();
   }
 }
 

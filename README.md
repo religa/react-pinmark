@@ -77,6 +77,28 @@ Wraps your app and provides the comment context. Must be an ancestor of `<Commen
 | `contextProvider` | `() => Record<string, unknown>` | — | Returns custom metadata attached to each new thread. |
 | `enabled` | `boolean` | `true` | Mount or unmount the overlay entirely. |
 
+#### Context & metadata
+
+Every new thread automatically captures environment context (viewport, screen size, device pixel ratio, full URL, page language, color scheme, user agent, and page title) into the thread's `metadata` field. This makes comments interpretable even after the page has changed.
+
+For app-specific context, use `contextProvider` to attach data that only the host app knows:
+
+```tsx
+<CommentProvider
+  backend={adapter}
+  projectId="my-app"
+  contextProvider={() => ({
+    userId: currentUser.id,
+    userRole: currentUser.role,
+    featureFlags: getActiveFlags(),
+    route: router.currentRoute.name,
+    filters: searchParams.toString(),
+  })}
+>
+```
+
+**Recommended fields**: authenticated user ID/role, active feature flags or A/B variants, route name or parameters, active filters/search state, and any app state that affects what the user sees on screen.
+
 ### `<CommentOverlay>`
 
 Renders the portal with floating controls, pins, thread popover, and thread list.

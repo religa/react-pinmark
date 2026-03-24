@@ -6,6 +6,9 @@ describe('captureContext', () => {
     vi.stubGlobal('innerWidth', 1280);
     vi.stubGlobal('innerHeight', 720);
     vi.stubGlobal('navigator', { userAgent: 'TestAgent/1.0' });
+    vi.stubGlobal('devicePixelRatio', 2);
+    vi.stubGlobal('screen', { width: 1920, height: 1080 });
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false }));
   });
 
   it('captures viewport, userAgent, and timestamp', () => {
@@ -15,6 +18,53 @@ describe('captureContext', () => {
     expect(ctx.timestamp).toBeTruthy();
     expect(() => new Date(ctx.timestamp)).not.toThrow();
     expect(ctx.custom).toBeUndefined();
+  });
+
+  it('captures screen dimensions and devicePixelRatio', () => {
+    const ctx = captureContext();
+    expect(ctx.screen).toEqual({ width: 1920, height: 1080 });
+    expect(ctx.devicePixelRatio).toBe(2);
+  });
+
+  it('captures full URL', () => {
+    const ctx = captureContext();
+    expect(ctx.url).toBe(window.location.href);
+  });
+
+  it('captures lang from documentElement', () => {
+    document.documentElement.lang = 'pl';
+    const ctx = captureContext();
+    expect(ctx.lang).toBe('pl');
+    document.documentElement.lang = '';
+  });
+
+  it('omits lang when not set', () => {
+    document.documentElement.lang = '';
+    const ctx = captureContext();
+    expect(ctx.lang).toBeUndefined();
+  });
+
+  it('detects light color scheme', () => {
+    const ctx = captureContext();
+    expect(ctx.colorScheme).toBe('light');
+  });
+
+  it('detects dark color scheme', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }));
+    const ctx = captureContext();
+    expect(ctx.colorScheme).toBe('dark');
+  });
+
+  it('falls back to light when matchMedia is unavailable', () => {
+    vi.stubGlobal('matchMedia', undefined);
+    const ctx = captureContext();
+    expect(ctx.colorScheme).toBe('light');
+  });
+
+  it('omits screen when window.screen is unavailable', () => {
+    vi.stubGlobal('screen', undefined);
+    const ctx = captureContext();
+    expect(ctx.screen).toBeUndefined();
   });
 
   it('includes custom context when provider is given', () => {

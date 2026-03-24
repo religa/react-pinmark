@@ -10,6 +10,7 @@ export type { BackendAdapter, AttachmentAdapter } from './adapters/adapter';
 export type { CommentContextValue } from './components/CommentContext';
 export { formatRelativeTime } from './core/format';
 export { clearStoredAuthor } from './core/author';
+export type { CaptureOptions } from './core/screenshot';
 export type {
   Author,
   PinPosition,
