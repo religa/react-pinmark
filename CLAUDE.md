@@ -21,7 +21,9 @@ Comments are persisted to `localStorage` under the key `rc_demo_threads`, so the
 page reloads. Clear the key in DevTools to reset.
 
 ```bash
-cd demo && npm install   # first time only
+npm install              # root deps (first time only)
+cd demo && npm install   # demo deps (first time only)
+cd ..
 npm run demo             # from project root, or: cd demo && npm run dev
 ```
 

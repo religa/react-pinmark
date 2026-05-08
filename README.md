@@ -15,7 +15,9 @@ Embeddable pin-based commenting overlay for React applications. Drop it into any
 ## Try the demo
 
 ```bash
-cd demo && npm install   # first time only
+npm install              # root deps (first time only)
+cd demo && npm install   # demo deps (first time only)
+cd ..
 npm run demo             # starts at http://localhost:5173
 ```
 
@@ -35,7 +37,7 @@ React 18+ is required as a peer dependency.
 
 ```tsx
 import { CommentProvider, CommentOverlay } from 'react-pinmark';
-import 'react-pinmark/dist/index.css';
+import 'react-pinmark/styles';
 
 export default function App() {
   return (
@@ -108,6 +110,7 @@ Renders the portal with floating controls, pins, thread popover, and thread list
 | `hideResolved` | `boolean` | `true` | Hide resolved threads from the overlay. |
 | `zIndex` | `number` | `10000` | CSS `z-index` for the overlay root. |
 | `shortcutKey` | `string \| null` | `'c'` | Key that toggles comment mode. Pass `null` to disable. |
+| `onNavigatePage` | `(pageUrl: string) => void` | — | Called when the user clicks a thread on another page. Use your router's navigate function; falls back to `window.location.href`. |
 
 ### `useComments()`
 
@@ -131,6 +134,8 @@ const {
   replyToThread,
   resolveThread,
   unresolveThread,
+  deleteThread,
+  deleteComment,
   refreshThreads,
   setFilter,
 } = useComments();
@@ -145,7 +150,7 @@ const {
 
 ## Backend adapter interface
 
-The library is storage-agnostic. Implement five async methods:
+The library is storage-agnostic. Implement seven async methods:
 
 ```ts
 import type { BackendAdapter } from 'react-pinmark';
@@ -154,8 +159,10 @@ const myBackend: BackendAdapter = {
   getThreads:    async ({ projectId, pageUrl, status }) => Thread[],
   createThread:  async (input) => Thread,
   updateThread:  async (id, patch) => Thread,
+  deleteThread:  async (id) => void,
   getComments:   async (threadId) => Comment[],
   createComment: async (input) => Comment,
+  deleteComment: async (id) => void,
 };
 ```
 
@@ -165,7 +172,8 @@ const myBackend: BackendAdapter = {
 import type { AttachmentAdapter } from 'react-pinmark';
 
 const myAttachmentAdapter: AttachmentAdapter = {
-  uploadAttachment: async (file: File | Blob) => ({ id: string, url: string }),
+  uploadAttachment: async (file: File | Blob) => Attachment,
+  // Attachment: { id: string, url: string, width?: number, height?: number }
 };
 ```
 
@@ -193,7 +201,7 @@ These create the `rc_threads` and `rc_comments` tables (with RLS) and the `rc-at
 import { createClient } from '@supabase/supabase-js';
 import { createSupabaseAdapter } from 'react-pinmark/supabase';
 import { CommentProvider, CommentOverlay } from 'react-pinmark';
-import 'react-pinmark/dist/index.css';
+import 'react-pinmark/styles';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const adapter = createSupabaseAdapter({ supabaseClient: supabase });
