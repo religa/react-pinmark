@@ -981,6 +981,30 @@
   margin: 0 2px;
 }
 
+.rc-thread-list-clear-filters {
+  margin-top: 4px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--rc-color-primary);
+  background: none;
+  border: 1px solid var(--rc-color-primary);
+  border-radius: var(--rc-radius);
+  cursor: pointer;
+}
+
+.rc-thread-list-clear-filters:hover {
+  background: var(--rc-color-primary);
+  color: #fff;
+}
+
+.rc-thread-list-loading {
+  padding: 24px;
+  text-align: center;
+  color: var(--rc-color-text-secondary);
+  font-size: 13px;
+}
+
 /* Markdown-rendered comment body */
 .rc-comment-body--md {
   font-size: 13px;

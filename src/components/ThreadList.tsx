@@ -14,6 +14,7 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
     threads,
     isThreadListOpen,
     filter,
+    isLoading,
     closeThreadList,
     setFilter,
     resolveThread,
@@ -265,18 +266,36 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
       )}
 
       <div className="rc-thread-list-items">
-        {filteredThreads.length === 0 ? (
-          <div className="rc-thread-list-empty">
-            <svg className="rc-thread-list-empty-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-            <p className="rc-thread-list-empty-title">No comments yet</p>
-            <p className="rc-thread-list-empty-hint">
-              {shortcutKey
-                ? <>Press <kbd>{shortcutKey.toUpperCase()}</kbd> to enter comment mode, then click anywhere to leave a comment.</>
-                : 'Enter comment mode, then click anywhere to leave a comment.'}
-            </p>
-          </div>
+        {isLoading ? (
+          <div className="rc-thread-list-loading" aria-live="polite">Loading…</div>
+        ) : filteredThreads.length === 0 ? (
+          threads.length > 0 ? (
+            <div className="rc-thread-list-empty">
+              <svg className="rc-thread-list-empty-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              <p className="rc-thread-list-empty-title">No matching comments</p>
+              <p className="rc-thread-list-empty-hint">Your current filters are hiding all threads.</p>
+              <button
+                className="rc-thread-list-clear-filters"
+                onClick={() => setFilter({ pageUrl: undefined, status: undefined })}
+              >
+                Clear filters
+              </button>
+            </div>
+          ) : (
+            <div className="rc-thread-list-empty">
+              <svg className="rc-thread-list-empty-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              <p className="rc-thread-list-empty-title">No comments yet</p>
+              <p className="rc-thread-list-empty-hint">
+                {shortcutKey
+                  ? <>Press <kbd>{shortcutKey.toUpperCase()}</kbd> to enter comment mode, then click anywhere to leave a comment.</>
+                  : 'Enter comment mode, then click anywhere to leave a comment.'}
+              </p>
+            </div>
+          )
         ) : (
           filteredThreads.map((thread) => {
             const firstComment = thread.comments[0];
