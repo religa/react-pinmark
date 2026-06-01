@@ -1,11 +1,115 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { micromark } from 'micromark';
 import type { Thread, Comment, Author, Attachment } from '../core/types';
 import { formatRelativeTime } from '../core/format';
 import { Composer } from './Composer';
 import { resolvePin } from '../core/pin-resolver';
+import { parseThreadContext, type ThreadContext } from '../core/thread-context';
 
-function CommentItem({ comment }: { comment: Comment }) {
+// Tooltip clips above viewport when trigger is within this many px of the top edge.
+const FLIP_THRESHOLD = 90;
+
+function ContextTooltip({ context }: { context: ThreadContext }) {
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
+
+  const readRect = useCallback(() => {
+    const r = triggerRef.current?.getBoundingClientRect();
+    return r ? { top: r.top, right: document.documentElement.clientWidth - r.right } : null;
+  }, []);
+
+  const show = useCallback(() => setAnchor(readRect()), [readRect]);
+  const hide = useCallback(() => setAnchor(null), []);
+
+  // Keep position in sync while visible (scroll / resize can move the trigger).
+  useEffect(() => {
+    if (!anchor) return;
+    const update = () => setAnchor(readRect());
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [anchor !== null]); // re-subscribe only when visibility changes, not on every position update
+
+  const flipped = anchor !== null && anchor.top < FLIP_THRESHOLD;
+
+  return (
+    <span
+      ref={triggerRef}
+      className="rc-ctx-trigger"
+      tabIndex={0}
+      role="button"
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocus={show}
+      onBlur={hide}
+      aria-label="Environment info"
+    >
+      ⓘ
+      {anchor && createPortal(
+        <div
+          className={`rc-ctx-tooltip${flipped ? ' rc-ctx-tooltip--below' : ''}`}
+          role="tooltip"
+          style={{
+            position: 'fixed',
+            ...(flipped
+              ? { top: anchor.top + 18, right: anchor.right }
+              : { bottom: window.innerHeight - anchor.top + 6, right: anchor.right }),
+          }}
+        >
+          {context.browser && context.os && (
+            <span className="rc-ctx-row">
+              <span className="rc-ctx-key">Browser</span>
+              <span className="rc-ctx-val">{context.browser} / {context.os}</span>
+            </span>
+          )}
+          {context.viewport && (
+            <span className="rc-ctx-row">
+              <span className="rc-ctx-key">Viewport</span>
+              <span className="rc-ctx-val">{context.viewport}</span>
+            </span>
+          )}
+          {context.screen && (
+            <span className="rc-ctx-row">
+              <span className="rc-ctx-key">Screen</span>
+              <span className="rc-ctx-val">{context.screen}</span>
+            </span>
+          )}
+          {context.elementIdentity && (
+            <span className="rc-ctx-row">
+              <span className="rc-ctx-key">Element</span>
+              <span className="rc-ctx-val">{context.elementIdentity}</span>
+            </span>
+          )}
+          {context.elementSize && (
+            <span className="rc-ctx-row">
+              <span className="rc-ctx-key">Size</span>
+              <span className="rc-ctx-val">{context.elementSize}</span>
+            </span>
+          )}
+          {context.surroundingText && (
+            <span className="rc-ctx-row rc-ctx-row--wrap">
+              <span className="rc-ctx-key">Context</span>
+              <span className="rc-ctx-val">{context.surroundingText}</span>
+            </span>
+          )}
+        </div>,
+        document.body,
+      )}
+    </span>
+  );
+}
+
+function CommentItem({
+  comment,
+  threadContext,
+}: {
+  comment: Comment;
+  threadContext?: ThreadContext | null;
+}) {
   // micromark does not allow raw HTML by default — safe to use dangerouslySetInnerHTML
   const bodyHtml = useMemo(() => micromark(comment.body), [comment.body]);
   return (
@@ -15,6 +119,7 @@ function CommentItem({ comment }: { comment: Comment }) {
         <span className="rc-comment-time">
           {formatRelativeTime(comment.createdAt)}
         </span>
+        {threadContext && <ContextTooltip context={threadContext} />}
       </div>
       <div
         className="rc-comment-body rc-comment-body--md"
@@ -65,6 +170,7 @@ export function ThreadPopover({
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const [isResolving, setIsResolving] = useState(false);
   const pinPos = useMemo(() => resolvePin(thread.pin), [thread.pin]);
+  const threadContext = useMemo(() => parseThreadContext(thread), [thread]);
 
   const handleResolveClick = useCallback(async () => {
     setIsResolving(true);
@@ -191,8 +297,12 @@ export function ThreadPopover({
       </div>
 
       <div className="rc-popover-comments">
-        {thread.comments.map((comment) => (
-          <CommentItem key={comment.id} comment={comment} />
+        {thread.comments.map((comment, i) => (
+          <CommentItem
+            key={comment.id}
+            comment={comment}
+            threadContext={i === 0 ? threadContext : null}
+          />
         ))}
       </div>
 

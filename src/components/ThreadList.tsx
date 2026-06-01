@@ -7,6 +7,8 @@ export interface ThreadListProps {
   shortcutKey?: string | null;
 }
 
+const SESSION_KEY = 'rc_thread_filters';
+
 export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
   const {
     threads,
@@ -21,6 +23,27 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkLoading, setIsBulkLoading] = useState(false);
+
+  // Restore filter from sessionStorage on mount (survives refresh, not tab close)
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(SESSION_KEY);
+      if (saved) {
+        const { pageUrl, status } = JSON.parse(saved);
+        setFilter({ pageUrl, status });
+      }
+    } catch {}
+  }, []); // setFilter is a stable store action — intentionally omitted
+
+  // Persist filter to sessionStorage whenever it changes
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+        pageUrl: filter.pageUrl,
+        status: filter.status,
+      }));
+    } catch {}
+  }, [filter.pageUrl, filter.status]);
 
   // Clear selection when panel closes
   useEffect(() => {

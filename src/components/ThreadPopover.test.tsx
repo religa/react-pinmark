@@ -210,4 +210,118 @@ describe('ThreadPopover', () => {
     );
     expect(container.querySelector('script')).not.toBeInTheDocument();
   });
+
+  const CHROME_MACOS_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
+
+  it('shows context icon on first comment when thread has metadata', () => {
+    const thread = makeThread({
+      metadata: {
+        userAgent: CHROME_MACOS_UA,
+        viewport: { width: 1440, height: 900 },
+        devicePixelRatio: 2,
+      },
+    });
+    const { container } = renderWithContext(
+      <ThreadPopover
+        thread={thread}
+        onClose={vi.fn()}
+        onReply={vi.fn()}
+        onResolve={vi.fn()}
+        onUnresolve={vi.fn()}
+      />,
+    );
+    expect(container.querySelector('.rc-ctx-trigger')).not.toBeNull();
+  });
+
+  it('hides context icon when thread has no metadata', () => {
+    const { container } = renderWithContext(
+      <ThreadPopover
+        thread={makeThread()}
+        onClose={vi.fn()}
+        onReply={vi.fn()}
+        onResolve={vi.fn()}
+        onUnresolve={vi.fn()}
+      />,
+    );
+    expect(container.querySelector('.rc-ctx-trigger')).toBeNull();
+  });
+
+  it('tooltip contains browser, viewport, and element rows when trigger is hovered', () => {
+    const thread = makeThread({
+      pin: { x: 50, y: 200, anchorLabel: 'Submit Button' },
+      metadata: {
+        userAgent: CHROME_MACOS_UA,
+        viewport: { width: 800, height: 600 },
+        devicePixelRatio: 1,
+      },
+    });
+    const { container } = renderWithContext(
+      <ThreadPopover
+        thread={thread}
+        onClose={vi.fn()}
+        onReply={vi.fn()}
+        onResolve={vi.fn()}
+        onUnresolve={vi.fn()}
+      />,
+    );
+    const trigger = container.querySelector('.rc-ctx-trigger') as HTMLElement;
+    fireEvent.mouseEnter(trigger);
+    // Tooltip is portalled to document.body, not inside container
+    const tooltip = document.body.querySelector('.rc-ctx-tooltip');
+    expect(tooltip).not.toBeNull();
+    expect(tooltip?.textContent).toContain('Chrome 125');
+    expect(tooltip?.textContent).toContain('macOS');
+    expect(tooltip?.textContent).toContain('800×600');
+    expect(tooltip?.textContent).toContain('Submit Button');
+    fireEvent.mouseLeave(trigger);
+    expect(document.body.querySelector('.rc-ctx-tooltip')).toBeNull();
+  });
+
+  it('context icon only appears on first comment, not replies', () => {
+    const thread = makeThread({
+      metadata: {
+        userAgent: CHROME_MACOS_UA,
+        viewport: { width: 800, height: 600 },
+        devicePixelRatio: 1,
+      },
+      comments: [
+        { id: 'c1', threadId: 'thread-1', author: { displayName: 'Alice' }, body: 'First', attachments: [], createdAt: '2024-01-01T00:00:00Z' },
+        { id: 'c2', threadId: 'thread-1', author: { displayName: 'Bob' }, body: 'Reply', attachments: [], createdAt: '2024-01-02T00:00:00Z' },
+      ],
+    });
+    const { container } = renderWithContext(
+      <ThreadPopover
+        thread={thread}
+        onClose={vi.fn()}
+        onReply={vi.fn()}
+        onResolve={vi.fn()}
+        onUnresolve={vi.fn()}
+      />,
+    );
+    expect(container.querySelectorAll('.rc-ctx-trigger')).toHaveLength(1);
+  });
+
+  it('shows tooltip on focus and hides on blur (keyboard accessible)', () => {
+    const thread = makeThread({
+      metadata: {
+        userAgent: CHROME_MACOS_UA,
+        viewport: { width: 800, height: 600 },
+        devicePixelRatio: 1,
+      },
+    });
+    const { container } = renderWithContext(
+      <ThreadPopover
+        thread={thread}
+        onClose={vi.fn()}
+        onReply={vi.fn()}
+        onResolve={vi.fn()}
+        onUnresolve={vi.fn()}
+      />,
+    );
+    const trigger = container.querySelector('.rc-ctx-trigger') as HTMLElement;
+    fireEvent.focus(trigger);
+    expect(document.body.querySelector('.rc-ctx-tooltip')).not.toBeNull();
+    fireEvent.blur(trigger);
+    expect(document.body.querySelector('.rc-ctx-tooltip')).toBeNull();
+  });
 });
