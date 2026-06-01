@@ -52,7 +52,7 @@ src/
 │   ├── adapter.ts            BackendAdapter (7 methods) + AttachmentAdapter (uploadAttachment) interfaces
 │   └── supabase/
 │       ├── index.ts          createSupabaseAdapter — implements both interfaces; asPromise() helper
-│       └── migrations/       001_create_threads.sql, 002_create_comments.sql, 003_create_storage.sql
+│       └── migrations/       001_create_threads.sql, 002_create_comments.sql, 003_create_storage.sql, 004_add_delete_policies.sql, 005_grant_anon_access.sql
 ├── components/
 │   ├── CommentContext.ts     CommentContextValue + useCommentContext() hook
 │   ├── CommentProvider.tsx   creates store, fetches threads on mount + window focus
