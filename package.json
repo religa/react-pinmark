@@ -1,12 +1,12 @@
 {
   "name": "react-pinmark",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Embeddable commenting overlay for React applications",
   "license": "MIT",
   "author": "react-pinmark contributors",
   "repository": {
     "type": "git",
-    "url": "https://github.com/religa/react-pinmark.git"
+    "url": "git+https://github.com/religa/react-pinmark.git"
   },
   "homepage": "https://github.com/religa/react-pinmark#readme",
   "bugs": {
@@ -63,8 +63,8 @@
     }
   },
   "bin": {
-    "react-pinmark": "./dist/cli/index.js",
-    "react-pinmark-mcp": "./dist/mcp/index.js"
+    "react-pinmark": "dist/cli/index.js",
+    "react-pinmark-mcp": "dist/mcp/index.js"
   },
   "files": [
     "dist",
