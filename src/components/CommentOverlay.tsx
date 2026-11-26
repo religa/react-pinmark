@@ -14,7 +14,7 @@ import { createPinPosition, resolvePin } from '../core/pin-resolver';
 import { useLocationPathname } from '../hooks/useLocationPathname';
 import type { PinPosition, Author, Attachment } from '../core/types';
 import '../styles/base.css';
-import { isActiveStatus } from '../core/status';
+import { isActiveStatus, isWaitingFor } from '../core/status';
 import { computePinNumbers } from '../core/pin-numbers';
 
 export interface CommentOverlayProps {
@@ -54,6 +54,7 @@ export function CommentOverlay({
     createThread,
     replyToThread,
     setThreadStatus,
+    currentAuthor,
     openThreadList,
   } = useComments();
   const currentPage = useLocationPathname();
@@ -266,6 +267,8 @@ export function CommentOverlay({
 
   const unresolvedCount = pageThreads.filter((t) => isActiveStatus(t.status)).length;
   const badgeLabel = unresolvedCount > 9 ? '9+' : unresolvedCount > 0 ? String(unresolvedCount) : null;
+  // Across all pages: a fix waiting for you matters wherever it is.
+  const waitingCount = threads.filter((t) => isWaitingFor(t, currentAuthor?.id)).length;
 
   const portalContent = (
     <ErrorBoundary>
@@ -296,6 +299,7 @@ export function CommentOverlay({
       {activeThread && (
         <ThreadPopover
           thread={activeThread}
+          pinNumber={pinNumbers.get(activeThread.id)}
           onClose={closeThread}
           onReply={(body, author, attachments) =>
             handleReply(activeThread.id, body, author, attachments)
@@ -376,6 +380,15 @@ export function CommentOverlay({
           {badgeLabel && (
             <span className="rc-list-badge" aria-label={`${unresolvedCount} unresolved`}>
               {badgeLabel}
+            </span>
+          )}
+          {waitingCount > 0 && (
+            <span
+              className="rc-list-badge rc-list-badge--waiting"
+              aria-label={`${waitingCount} waiting for you to verify`}
+              title={`${waitingCount} fix${waitingCount === 1 ? '' : 'es'} waiting for you to verify`}
+            >
+              {waitingCount > 9 ? '9+' : waitingCount}
             </span>
           )}
         </button>

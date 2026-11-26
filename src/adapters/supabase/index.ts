@@ -1,6 +1,8 @@
 import type { BackendAdapter, AttachmentAdapter } from '../adapter';
 import type {
+  Author,
   Thread,
+  ThreadEvent,
   Comment,
   GetThreadsParams,
   CreateThreadInput,
@@ -57,6 +59,17 @@ function mapThread(row: Record<string, unknown>, comments: Comment[] = []): Thre
   };
 }
 
+function mapEvent(row: Record<string, unknown>): ThreadEvent {
+  return {
+    id: row.id as string,
+    threadId: row.thread_id as string,
+    type: row.type as ThreadEvent['type'],
+    actor: row.actor as Author,
+    toStatus: row.to_status as ThreadStatus,
+    createdAt: row.created_at as string,
+  };
+}
+
 function mapComment(row: Record<string, unknown>): Comment {
   return {
     id: row.id as string,
@@ -72,6 +85,34 @@ export function createSupabaseAdapter(
   config: SupabaseAdapterConfig,
 ): BackendAdapter & AttachmentAdapter {
   const { supabaseClient: sb } = config;
+
+  /**
+   * Status history is auxiliary: if rc_thread_events is missing (migration 007 not
+   * run) or unreadable, threads load without it instead of failing.
+   */
+  async function getEvents(projectId: string, threadId?: string): Promise<ThreadEvent[]> {
+    let query = sb
+      .from('rc_thread_events')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: true });
+    if (threadId) query = query.eq('thread_id', threadId);
+    try {
+      const { data, error } = await asPromise<Record<string, unknown>[]>(query);
+      if (error) {
+        console.warn('[react-pinmark] Status history unavailable:', error.message);
+        return [];
+      }
+      return (data ?? []).map(mapEvent);
+    } catch (err) {
+      console.warn('[react-pinmark] Status history unavailable:', err);
+      return [];
+    }
+  }
+
+  function withEvents(thread: Thread, events: ThreadEvent[]): Thread {
+    return { ...thread, events: events.filter((e) => e.threadId === thread.id) };
+  }
 
   const adapter: BackendAdapter & AttachmentAdapter = {
     async getThreads(params: GetThreadsParams): Promise<Thread[]> {
@@ -91,15 +132,17 @@ export function createSupabaseAdapter(
 
       const { data, error } = await asPromise<Record<string, unknown>[]>(query);
       if (error) throw new Error(error.message);
+      if (!data?.length) return [];
 
-      return (data ?? []).map((row) => {
+      const events = await getEvents(params.projectId);
+      return data.map((row) => {
         const rawComments = (row.rc_comments as Record<string, unknown>[]) ?? [];
         const comments = rawComments.map(mapComment);
         comments.sort(
           (a, b) =>
             new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
         );
-        return mapThread(row, comments);
+        return withEvents(mapThread(row, comments), events);
       });
     },
 
@@ -150,6 +193,7 @@ export function createSupabaseAdapter(
     async updateThread(
       id: string,
       patch: { status: ThreadStatus },
+      actor: Author,
     ): Promise<Thread> {
       const { data, error } = await asPromise<Record<string, unknown>>(
         sb
@@ -168,7 +212,23 @@ export function createSupabaseAdapter(
         (a, b) =>
           new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       );
-      return mapThread(row, comments);
+      const thread = mapThread(row, comments);
+
+      // Record the change. The status already changed, so a history failure only warns.
+      const { error: eventError } = await asPromise<unknown>(
+        sb.from('rc_thread_events').insert({
+          thread_id: id,
+          project_id: thread.projectId,
+          type: 'status_changed',
+          actor,
+          to_status: patch.status,
+        }),
+      ).catch((err: unknown) => ({ error: { message: String(err) } }));
+      if (eventError) {
+        console.warn('[react-pinmark] Could not record status history:', eventError.message);
+      }
+
+      return withEvents(thread, await getEvents(thread.projectId, id));
     },
 
     async getComments(threadId: string): Promise<Comment[]> {

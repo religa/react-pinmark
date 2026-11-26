@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   isActiveStatus,
+  isWaitingFor,
   isStatusFilter,
   isThreadStatus,
   matchesStatusFilter,
@@ -29,6 +30,19 @@ describe('status', () => {
     expect(statusesForFilter('all')).toBeUndefined();
     expect(statusesForFilter('active')).toEqual(['open', 'pending']);
     expect(statusesForFilter('dismissed')).toEqual(['dismissed']);
+  });
+
+  it('a thread waits for its reporter only while pending', () => {
+    const thread = (status: 'open' | 'pending', id?: string) => ({
+      status,
+      comments: [{ author: { displayName: 'Ana', id } }],
+    });
+    expect(isWaitingFor(thread('pending', 'ana-id'), 'ana-id')).toBe(true);
+    expect(isWaitingFor(thread('open', 'ana-id'), 'ana-id')).toBe(false);
+    expect(isWaitingFor(thread('pending', 'bob-id'), 'ana-id')).toBe(false);
+    // Comments from before author ids existed never match
+    expect(isWaitingFor(thread('pending', undefined), undefined)).toBe(false);
+    expect(isWaitingFor(thread('pending', undefined), 'ana-id')).toBe(false);
   });
 
   it('matches statuses against filters', () => {

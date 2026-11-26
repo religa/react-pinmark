@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useCallback, useState } from 'react';
 import { useComments } from '../hooks/useComments';
-import { formatRelativeTime } from '../core/format';
+import { formatRelativeTime, formatAbsoluteTime } from '../core/format';
 import {
   THREAD_STATUSES,
   STATUS_FILTERS,
   STATUS_LABELS,
   isStatusFilter,
   isThreadStatus,
+  isWaitingFor,
   matchesStatusFilter,
 } from '../core/status';
 import { computePinNumbers } from '../core/pin-numbers';
@@ -28,6 +29,7 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
     setFilter,
     setThreadStatus,
     deleteThread,
+    currentAuthor,
   } = useComments();
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -38,8 +40,12 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
     try {
       const saved = sessionStorage.getItem(SESSION_KEY);
       if (saved) {
-        const { pageUrl, status } = JSON.parse(saved);
-        setFilter({ pageUrl, status: isStatusFilter(status) ? status : undefined });
+        const { pageUrl, status, waitingForMe } = JSON.parse(saved);
+        setFilter({
+          pageUrl,
+          status: isStatusFilter(status) ? status : undefined,
+          waitingForMe: waitingForMe === true || undefined,
+        });
       }
     } catch {}
   }, []); // setFilter is a stable store action — intentionally omitted
@@ -50,9 +56,10 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({
         pageUrl: filter.pageUrl,
         status: filter.status,
+        waitingForMe: filter.waitingForMe,
       }));
     } catch {}
-  }, [filter.pageUrl, filter.status]);
+  }, [filter.pageUrl, filter.status, filter.waitingForMe]);
 
   // Clear selection when panel closes
   useEffect(() => {
@@ -76,6 +83,8 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
     [pinNumbers],
   );
 
+  const currentAuthorId = currentAuthor?.id;
+
   // Client-side filtering against already-loaded threads
   const filteredThreads = useMemo(() => {
     let result = threads;
@@ -83,8 +92,16 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
       result = result.filter((t) => t.pageUrl === filter.pageUrl);
     }
     result = result.filter((t) => matchesStatusFilter(t.status, filter.status));
+    if (filter.waitingForMe) {
+      result = result.filter((t) => isWaitingFor(t, currentAuthorId));
+    }
     return result;
-  }, [threads, filter]);
+  }, [threads, filter, currentAuthorId]);
+
+  const waitingCount = useMemo(
+    () => threads.filter((t) => isWaitingFor(t, currentAuthorId)).length,
+    [threads, currentAuthorId],
+  );
 
   const toggleSelection = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -247,6 +264,20 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
         </select>
       </div>
 
+      {(waitingCount > 0 || filter.waitingForMe) && (
+        <div className="rc-waiting-row">
+          <button
+            type="button"
+            className={`rc-waiting-chip${filter.waitingForMe ? ' rc-waiting-chip--active' : ''}`}
+            aria-pressed={!!filter.waitingForMe}
+            onClick={() => setFilter({ waitingForMe: filter.waitingForMe ? undefined : true })}
+            title="Pending fixes on threads you opened — check them and confirm or reopen"
+          >
+            Waiting for you · {waitingCount}
+          </button>
+        </div>
+      )}
+
       {someSelected && (
         <div className="rc-bulk-actions">
           <span className="rc-bulk-count">{selectedIds.size} selected</span>
@@ -288,7 +319,7 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
               <p className="rc-thread-list-empty-hint">Your current filters are hiding all threads.</p>
               <button
                 className="rc-thread-list-clear-filters"
-                onClick={() => setFilter({ pageUrl: undefined, status: undefined })}
+                onClick={() => setFilter({ pageUrl: undefined, status: undefined, waitingForMe: undefined })}
               >
                 Clear filters
               </button>
@@ -337,7 +368,10 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
                     <span className="rc-thread-list-item-author">
                       {firstComment?.author.displayName ?? 'Unknown'}
                     </span>
-                    <span className="rc-thread-list-item-time">
+                    <span
+                      className="rc-thread-list-item-time"
+                      title={firstComment ? formatAbsoluteTime(firstComment.createdAt) : undefined}
+                    >
                       {firstComment ? formatRelativeTime(firstComment.createdAt) : ''}
                     </span>
                   </div>

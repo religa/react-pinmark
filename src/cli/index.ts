@@ -20,8 +20,8 @@ Usage: react-pinmark <command> <subcommand> [options]
 
 Commands:
   threads list    [--status ${STATUS_FILTER_USAGE}] [--page <url>] [--format json]
-  threads status  <thread-id> <${THREAD_STATUSES.join('|')}>
-  threads resolve <thread-id>        (shorthand for: threads status <id> resolved)
+  threads status  <thread-id> <${THREAD_STATUSES.join('|')}> [--author <name>]
+  threads resolve <thread-id> [--author <name>]   (shorthand for: threads status <id> resolved)
   threads delete  <thread-id>
   comments list   <thread-id> [--format json]
   comments add    <thread-id> --body <text> [--author <name>]
@@ -80,10 +80,10 @@ async function main() {
           return listThreads(adapter, config, opts);
         case 'status':
           if (!arg) throw new Error('Usage: threads status <thread-id> <status>');
-          return setThreadStatus(adapter, arg, arg2);
+          return setThreadStatus(adapter, arg, arg2, opts);
         case 'resolve':
           if (!arg) throw new Error('Usage: threads resolve <thread-id>');
-          return setThreadStatus(adapter, arg, 'resolved');
+          return setThreadStatus(adapter, arg, 'resolved', opts);
         case 'delete':
           if (!arg) throw new Error('Usage: threads delete <thread-id>');
           return deleteThread(adapter, arg);

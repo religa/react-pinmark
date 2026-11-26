@@ -1,4 +1,5 @@
 import type {
+  Author,
   Thread,
   Comment,
   Attachment,
@@ -11,9 +12,11 @@ import type { ThreadStatus } from '../core/status';
 export interface BackendAdapter {
   getThreads(params: GetThreadsParams): Promise<Thread[]>;
   createThread(input: CreateThreadInput): Promise<Thread>;
+  /** Changes the status and records a status_changed event by `actor` (if the backend keeps history). */
   updateThread(
     id: string,
     patch: { status: ThreadStatus },
+    actor: Author,
   ): Promise<Thread>;
   deleteThread(id: string): Promise<void>;
   getComments(threadId: string): Promise<Comment[]>;

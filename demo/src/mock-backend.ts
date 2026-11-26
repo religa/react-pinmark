@@ -1,5 +1,5 @@
 import type { BackendAdapter } from 'react-pinmark';
-import type { Thread, Comment, GetThreadsParams, CreateThreadInput, CreateCommentInput, ThreadStatus } from 'react-pinmark';
+import type { Author, Thread, Comment, GetThreadsParams, CreateThreadInput, CreateCommentInput, ThreadStatus } from 'react-pinmark';
 import { matchesStatusFilter } from 'react-pinmark';
 
 const STORAGE_KEY = 'rc_demo_threads';
@@ -52,11 +52,23 @@ export const mockBackend: BackendAdapter = {
     return thread;
   },
 
-  async updateThread(id: string, patch: { status: ThreadStatus }): Promise<Thread> {
+  async updateThread(id: string, patch: { status: ThreadStatus }, actor: Author): Promise<Thread> {
     const threads = load();
     const idx = threads.findIndex((t) => t.id === id);
     if (idx === -1) throw new Error(`Thread ${id} not found`);
-    threads[idx] = { ...threads[idx], ...patch };
+    const event = {
+      id: crypto.randomUUID(),
+      threadId: id,
+      type: 'status_changed' as const,
+      actor,
+      toStatus: patch.status,
+      createdAt: new Date().toISOString(),
+    };
+    threads[idx] = {
+      ...threads[idx],
+      ...patch,
+      events: [...(threads[idx].events ?? []), event],
+    };
     save(threads);
     return threads[idx];
   },

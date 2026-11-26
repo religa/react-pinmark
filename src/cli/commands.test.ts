@@ -112,9 +112,11 @@ describe('CLI commands', () => {
   describe('setThreadStatus', () => {
     it('calls updateThread with the given status', async () => {
       await setThreadStatus(adapter, 'thread-1', 'pending');
-      expect(adapter.updateThread).toHaveBeenCalledWith('thread-1', {
-        status: 'pending',
-      });
+      expect(adapter.updateThread).toHaveBeenCalledWith(
+        'thread-1',
+        { status: 'pending' },
+        { displayName: 'CLI' },
+      );
       expect(consoleSpy).toHaveBeenCalledWith('Set thread thread-1 to pending');
     });
 

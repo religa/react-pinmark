@@ -122,6 +122,73 @@ describe('ThreadPopover', () => {
     expect(onStatusChange).toHaveBeenCalledWith('dismissed');
   });
 
+  it('shows the pin number in the title', () => {
+    renderWithContext(
+      <ThreadPopover
+        thread={makeThread()}
+        pinNumber={3}
+        onClose={vi.fn()}
+        onReply={vi.fn()}
+        onStatusChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/#3 · 1 comment$/)).toBeInTheDocument();
+  });
+
+  it('shows status history between comments, in time order, with exact time on hover', () => {
+    const thread = makeThread({
+      comments: [
+        {
+          id: 'c1',
+          threadId: 'thread-1',
+          author: { displayName: 'Ana' },
+          body: 'Button misaligned',
+          attachments: [],
+          createdAt: '2024-01-01T10:00:00Z',
+        },
+        {
+          id: 'c2',
+          threadId: 'thread-1',
+          author: { displayName: 'Ana' },
+          body: 'Looks good now',
+          attachments: [],
+          createdAt: '2024-01-01T12:00:00Z',
+        },
+      ],
+      events: [
+        {
+          id: 'e1',
+          threadId: 'thread-1',
+          type: 'status_changed',
+          actor: { displayName: 'Claude' },
+          toStatus: 'pending',
+          createdAt: '2024-01-01T11:00:00Z',
+        },
+      ],
+    });
+    const { container } = renderWithContext(
+      <ThreadPopover
+        thread={thread}
+        onClose={vi.fn()}
+        onReply={vi.fn()}
+        onStatusChange={vi.fn()}
+      />,
+    );
+    const rows = [...container.querySelectorAll('.rc-comment, .rc-event')].map(
+      (el) => el.textContent ?? '',
+    );
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toContain('Button misaligned');
+    expect(rows[1]).toMatch(/Claude → Pending/);
+    expect(rows[2]).toContain('Looks good now');
+
+    const time = container.querySelector('.rc-event-time');
+    expect(time?.getAttribute('title')).toBe(new Date('2024-01-01T11:00:00Z').toLocaleString());
+    expect(container.querySelector('.rc-comment-time')?.getAttribute('title')).toBe(
+      new Date('2024-01-01T10:00:00Z').toLocaleString(),
+    );
+  });
+
   it('calls onClose when close button clicked', () => {
     const onClose = vi.fn();
     renderWithContext(

@@ -135,6 +135,40 @@ describe('CommentOverlay', () => {
     expect(pins).toHaveLength(1);
   });
 
+  it('shows an amber badge for fixes waiting for the current author', async () => {
+    const mine = (id: string, status: Thread['status'], pageUrl = '/') =>
+      makeThread({
+        id,
+        status,
+        pageUrl,
+        comments: [
+          {
+            id: `c-${id}`,
+            threadId: id,
+            author: { displayName: 'Ana', id: 'ana-id' },
+            body: 'x',
+            attachments: [],
+            createdAt: '2024-01-01T00:00:00Z',
+          },
+        ],
+      });
+    const backend = createMockBackend([
+      mine('p1', 'pending'),
+      mine('p2', 'pending', '/other-page'), // counted across pages
+      mine('o1', 'open'),
+      makeThread({ id: 'theirs', status: 'pending' }), // someone else's thread
+    ]);
+    render(
+      <CommentProvider backend={backend} projectId="test" author={{ displayName: 'Ana', id: 'ana-id' }}>
+        <CommentOverlay />
+      </CommentProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('2 waiting for you to verify')).toHaveTextContent('2');
+    });
+  });
+
   it('keeps pending threads visible and hides dismissed ones by default', async () => {
     const pending = makeThread({ id: 'p1', status: 'pending' });
     const dismissed = makeThread({ id: 'd1', status: 'dismissed' });

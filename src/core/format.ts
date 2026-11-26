@@ -14,3 +14,9 @@ export function formatRelativeTime(dateStr: string): string {
   if (diffDay < 30) return `${diffDay}d ago`;
   return date.toLocaleDateString();
 }
+
+/** Full local date and time, for tooltips on relative times. */
+export function formatAbsoluteTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  return isNaN(date.getTime()) ? dateStr : date.toLocaleString();
+}

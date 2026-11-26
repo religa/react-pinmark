@@ -143,6 +143,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--rc-color-border);
 }
@@ -230,6 +231,27 @@
 }
 
 .rc-comment + .rc-comment {
+  border-top: 1px solid var(--rc-color-border);
+}
+
+/* Status history row, interleaved with comments */
+.rc-event {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+  border-top: 1px solid var(--rc-color-border);
+  font-size: 12px;
+  color: var(--rc-color-text-secondary);
+}
+
+.rc-event-actor {
+  font-weight: 600;
+  color: var(--rc-color-text);
+}
+
+.rc-event + .rc-comment {
   border-top: 1px solid var(--rc-color-border);
 }
 
@@ -681,6 +703,13 @@
   pointer-events: none;
 }
 
+/* Fixes waiting for the current user to verify */
+.rc-list-badge--waiting {
+  bottom: auto;
+  top: 2px;
+  background: var(--rc-color-pending);
+}
+
 /* Thread list (Phase 3 styles) */
 .rc-thread-list {
   position: fixed;
@@ -751,6 +780,33 @@
   gap: 8px;
   padding: 10px 16px;
   border-bottom: 1px solid var(--rc-color-border);
+}
+
+.rc-waiting-row {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--rc-color-border);
+}
+
+.rc-waiting-chip {
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--rc-font-family);
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--rc-color-pending);
+  background: transparent;
+  color: var(--rc-color-pending);
+  cursor: pointer;
+}
+
+.rc-waiting-chip--active {
+  background: var(--rc-color-pending);
+  color: #fff;
+}
+
+.rc-waiting-chip:focus-visible {
+  outline: 2px solid var(--rc-color-primary);
+  outline-offset: 1px;
 }
 
 .rc-filter-select {

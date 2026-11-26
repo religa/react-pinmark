@@ -109,6 +109,26 @@ describe('exportThreads', () => {
       expect(output).toContain('# Feedback Report — test');
       expect(output).toContain('Threads: 0 (open: 0, pending: 0, resolved: 0, dismissed: 0)');
     });
+
+    it('includes status history after the comments', async () => {
+      const adapter = createMockAdapter([
+        makeThread({
+          status: 'resolved',
+          events: [
+            {
+              id: 'e1',
+              threadId: 'thread-1',
+              type: 'status_changed',
+              actor: { displayName: 'Claude' },
+              toStatus: 'pending',
+              createdAt: '2024-01-02T00:00:00Z',
+            },
+          ],
+        }),
+      ]);
+      const output = await exportThreads(adapter, 'test', { format: 'markdown' });
+      expect(output).toContain('_Claude → pending (2024-01-02T00:00:00Z)_');
+    });
   });
 });
 

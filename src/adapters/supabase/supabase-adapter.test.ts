@@ -71,6 +71,28 @@ describe('createSupabaseAdapter', () => {
       expect(threads[0].comments[0].body).toBe('Hello');
     });
 
+    it('loads threads without history when the events query fails', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { client, mockQuery } = createMockSupabase();
+      mockQuery.then
+        .mockImplementationOnce((resolve: Function) =>
+          resolve({
+            data: [{ id: 't1', project_id: 'proj', page_url: '/', pin: {}, status: 'open', created_at: 'x', rc_comments: [] }],
+            error: null,
+          }),
+        )
+        .mockImplementationOnce((resolve: Function) =>
+          resolve({ data: null, error: { message: 'Could not find the table rc_thread_events' } }),
+        );
+
+      const adapter = createSupabaseAdapter({ supabaseClient: client });
+      const threads = await adapter.getThreads({ projectId: 'proj' });
+
+      expect(threads).toHaveLength(1);
+      expect(threads[0].events).toEqual([]);
+      warn.mockRestore();
+    });
+
     it('applies pageUrl filter', async () => {
       const { client, mockQuery } = createMockSupabase();
       mockQuery.then.mockImplementation((resolve: Function) => {
@@ -230,8 +252,78 @@ describe('createSupabaseAdapter', () => {
       });
 
       const adapter = createSupabaseAdapter({ supabaseClient: client });
-      const thread = await adapter.updateThread('t1', { status: 'resolved' });
+      const thread = await adapter.updateThread('t1', { status: 'resolved' }, { displayName: 'Ana' });
       expect(thread.status).toBe('resolved');
+    });
+
+    it('records a status_changed event and returns the history', async () => {
+      const { client, mockQuery } = createMockSupabase();
+      const threadRow = {
+        id: 't1',
+        project_id: 'proj',
+        page_url: '/page',
+        pin: { x: 0, y: 0 },
+        status: 'pending',
+        metadata: null,
+        created_at: '2024-01-01T00:00:00Z',
+        rc_comments: [],
+      };
+      const eventRow = {
+        id: 'e1',
+        thread_id: 't1',
+        project_id: 'proj',
+        type: 'status_changed',
+        actor: { displayName: 'Claude' },
+        to_status: 'pending',
+        created_at: '2024-01-02T00:00:00Z',
+      };
+      mockQuery.then
+        .mockImplementationOnce((resolve: Function) => resolve({ data: threadRow, error: null })) // update
+        .mockImplementationOnce((resolve: Function) => resolve({ data: null, error: null })) // insert event
+        .mockImplementationOnce((resolve: Function) => resolve({ data: [eventRow], error: null })); // read events
+
+      const adapter = createSupabaseAdapter({ supabaseClient: client });
+      const thread = await adapter.updateThread('t1', { status: 'pending' }, { displayName: 'Claude' });
+
+      expect(mockQuery.insert).toHaveBeenCalledWith({
+        thread_id: 't1',
+        project_id: 'proj',
+        type: 'status_changed',
+        actor: { displayName: 'Claude' },
+        to_status: 'pending',
+      });
+      expect(thread.events).toEqual([
+        {
+          id: 'e1',
+          threadId: 't1',
+          type: 'status_changed',
+          actor: { displayName: 'Claude' },
+          toStatus: 'pending',
+          createdAt: '2024-01-02T00:00:00Z',
+        },
+      ]);
+    });
+
+    it('still changes the status when the history table is missing', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { client, mockQuery } = createMockSupabase();
+      const missing = { data: null, error: { message: 'relation "rc_thread_events" does not exist' } };
+      mockQuery.then
+        .mockImplementationOnce((resolve: Function) =>
+          resolve({
+            data: { id: 't1', project_id: 'proj', page_url: '/', pin: {}, status: 'pending', created_at: 'x', rc_comments: [] },
+            error: null,
+          }),
+        )
+        .mockImplementation((resolve: Function) => resolve(missing));
+
+      const adapter = createSupabaseAdapter({ supabaseClient: client });
+      const thread = await adapter.updateThread('t1', { status: 'pending' }, { displayName: 'Ana' });
+
+      expect(thread.status).toBe('pending');
+      expect(thread.events).toEqual([]);
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
     });
   });
 

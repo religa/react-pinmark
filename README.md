@@ -72,7 +72,7 @@ Wraps your app and provides the comment context. Must be an ancestor of `<Commen
 |---|---|---|---|
 | `backend` | `BackendAdapter` | required | Storage adapter for threads and comments. |
 | `projectId` | `string` | required | Namespaces threads to a project/app. |
-| `author` | `{ displayName: string }` | — | Override identity. Skips the first-time name prompt. |
+| `author` | `{ displayName: string; id?: string }` | — | Override identity. Skips the first-time name prompt. Pass a stable `id` (e.g. your user id) to enable "Waiting for you". |
 | `colorScheme` | `'light' \| 'dark' \| 'system'` | `'system'` | Theme. `'system'` follows `prefers-color-scheme`. |
 | `attachmentAdapter` | `AttachmentAdapter` | — | Enables image upload in the composer (button + paste). |
 | `captureScreenshot` | `boolean` | `false` | Auto-capture a viewport screenshot when a pin is placed. Requires `attachmentAdapter`. |
@@ -157,7 +157,7 @@ import type { BackendAdapter } from 'react-pinmark';
 const myBackend: BackendAdapter = {
   getThreads:    async ({ projectId, pageUrl, status }) => Thread[],
   createThread:  async (input) => Thread,
-  updateThread:  async (id, patch) => Thread,
+  updateThread:  async (id, patch, actor) => Thread, // record a status_changed event by actor if you keep history
   deleteThread:  async (id) => void,
   getComments:   async (threadId) => Comment[],
   createComment: async (input) => Comment,
@@ -177,6 +177,10 @@ const myBackend: BackendAdapter = {
 | `dismissed` | Won't fix, by design, or a duplicate | no |
 
 Active threads are shown in the overlay by default and counted in the unresolved badge. The full list is exported as `THREAD_STATUSES`.
+
+**Status history.** Every status change records who made it and when. The popover shows it between the comments ("Claude → Pending · 2h ago"). The Supabase adapter stores it in `rc_thread_events` (migration 007). If that table is missing, threads load without history.
+
+**Waiting for you.** Saving your name creates a random author id, kept in `localStorage` with the name. Renaming keeps the id. A thread is *waiting for you* when it is `pending` and you opened it (its first comment carries your id). The list button shows an amber count of these threads across all pages, and the thread list has a **Waiting for you** filter. Comments written before author ids existed don't match anyone.
 
 ## Attachment adapter interface
 
@@ -206,6 +210,7 @@ The SQL files ship with the package in `node_modules/react-pinmark/src/adapters/
 3. `003_create_storage.sql`: the `rc-attachments` storage bucket
 4. `004_add_delete_policies.sql` and `005_grant_anon_access.sql`: fixes for databases created with older versions. On a fresh install they change nothing.
 5. `006_extend_thread_status.sql`: enables the `pending` and `dismissed` statuses
+6. `007_create_thread_events.sql`: the status history table
 
 Every migration is safe to re-run, so after upgrading react-pinmark you can run them all again.
 
@@ -285,7 +290,7 @@ react-pinmark ships a [Model Context Protocol](https://modelcontextprotocol.io/)
 | `pinmark_list_threads` | List threads, optionally filtered by status or page URL |
 | `pinmark_get_comments` | Get all comments for a thread |
 | `pinmark_add_comment` | Add a comment to a thread |
-| `pinmark_set_thread_status` | Set a thread to `open`, `pending`, `resolved` or `dismissed` |
+| `pinmark_set_thread_status` | Set a thread to `open`, `pending`, `resolved` or `dismissed`. Optional `author` names who made the change in the status history (default `MCP`). |
 | `pinmark_delete_thread` | Delete a thread and its comments |
 | `pinmark_delete_comment` | Delete a specific comment |
 | `pinmark_export` | Export threads as JSON or Markdown |
@@ -339,7 +344,7 @@ The same operations are available via the CLI:
 
 ```bash
 npx react-pinmark threads list --status active
-npx react-pinmark threads status <thread-id> pending
+npx react-pinmark threads status <thread-id> pending --author Claude
 npx react-pinmark comments add <thread-id> --body "Fixed in latest deploy"
 npx react-pinmark export --format markdown
 ```

@@ -88,6 +88,11 @@ function formatExportMarkdown(projectId: string, threads: Thread[]): string {
         lines.push(comment.body);
         lines.push('');
       }
+
+      for (const event of thread.events ?? []) {
+        lines.push(`_${event.actor.displayName} → ${event.toStatus} (${event.createdAt})_`);
+      }
+      if (thread.events?.length) lines.push('');
       lines.push('---');
     }
   }

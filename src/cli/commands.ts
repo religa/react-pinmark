@@ -33,9 +33,10 @@ export async function setThreadStatus(
   adapter: BackendAdapter,
   threadId: string,
   rawStatus: string | undefined,
+  opts: CommandOptions = {},
 ): Promise<void> {
   const status = parseThreadStatus(rawStatus);
-  await adapter.updateThread(threadId, { status });
+  await adapter.updateThread(threadId, { status }, { displayName: opts.author || 'CLI' });
   console.log(`Set thread ${threadId} to ${status}`);
 }
 

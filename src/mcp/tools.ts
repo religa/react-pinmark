@@ -85,6 +85,10 @@ const TOOLS: ToolDef[] = [
             'open = needs action; pending = fixed, awaiting reporter verification; ' +
             'resolved = verified fixed; dismissed = won\'t fix',
         },
+        author: {
+          type: 'string',
+          description: 'Who is making the change, shown in the status history (default: MCP)',
+        },
       },
       required: ['threadId', 'status'],
     },
@@ -196,9 +200,11 @@ export function buildToolHandlers(
   });
 
   handlers.set('pinmark_set_thread_status', async (args) => {
-    const thread = await adapter.updateThread(requireString(args, 'threadId'), {
-      status: parseThreadStatus(args.status),
-    });
+    const thread = await adapter.updateThread(
+      requireString(args, 'threadId'),
+      { status: parseThreadStatus(args.status) },
+      { displayName: optionalString(args, 'author') ?? 'MCP' },
+    );
     return jsonResult(thread);
   });
 

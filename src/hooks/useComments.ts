@@ -3,7 +3,7 @@ import { useCommentContext } from '../components/CommentContext';
 import { captureContext } from '../core/context-capture';
 import type { TargetInfo } from '../core/context-capture';
 import { getStoredAuthor } from '../core/author';
-import type { Thread, Comment, PinPosition, ThreadFilter, Attachment } from '../core/types';
+import type { Author, Thread, Comment, PinPosition, ThreadFilter, Attachment } from '../core/types';
 import type { CommentStore } from '../core/state';
 import type { ThreadStatus } from '../core/status';
 
@@ -31,6 +31,8 @@ export interface UseComments {
     body: string,
     attachments?: Attachment[],
   ): Promise<Comment>;
+  /** The person using the overlay: the `author` prop, else the name saved in this browser. */
+  currentAuthor: Author | null;
   setThreadStatus(threadId: string, status: ThreadStatus): Promise<void>;
   deleteThread(threadId: string): Promise<void>;
   deleteComment(commentId: string, threadId: string): Promise<void>;
@@ -164,10 +166,14 @@ export function useComments(): UseComments {
 
   const setThreadStatus = useCallback(
     async (threadId: string, status: ThreadStatus) => {
-      const updated = await backend.updateThread(threadId, { status });
+      const updated = await backend.updateThread(
+        threadId,
+        { status },
+        getAuthor() ?? { displayName: 'Anonymous' },
+      );
       store.getState().updateThread(threadId, updated);
     },
-    [store, backend],
+    [store, backend, getAuthor],
   );
 
   const deleteThread = useCallback(
@@ -208,6 +214,7 @@ export function useComments(): UseComments {
     closeThreadList,
     createThread,
     replyToThread,
+    currentAuthor: getAuthor(),
     setThreadStatus,
     deleteThread,
     deleteComment,

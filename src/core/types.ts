@@ -2,6 +2,8 @@ import type { ThreadStatus, StatusFilter } from './status';
 
 export interface Author {
   displayName: string;
+  /** Stable identity, generated when the user first saves their name. Renaming keeps it. */
+  id?: string;
 }
 
 export interface ScrollContainerInfo {
@@ -44,6 +46,17 @@ export interface Thread {
   metadata?: Record<string, unknown>;
   createdAt: string;
   comments: Comment[];
+  /** Status history, oldest first. Absent when the backend doesn't record history. */
+  events?: ThreadEvent[];
+}
+
+export interface ThreadEvent {
+  id: string;
+  threadId: string;
+  type: 'status_changed';
+  actor: Author;
+  toStatus: ThreadStatus;
+  createdAt: string;
 }
 
 export interface Comment {
@@ -58,6 +71,8 @@ export interface Comment {
 export interface ThreadFilter {
   pageUrl?: string;
   status?: StatusFilter;
+  /** Only pending threads the current author opened. */
+  waitingForMe?: boolean;
 }
 
 export interface GetThreadsParams {

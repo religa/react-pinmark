@@ -67,9 +67,8 @@ export function Composer({
   const resolvedAuthor = propAuthor ?? localAuthor;
   const needsAuthor = !resolvedAuthor || isEditingName;
 
-  const handleAuthorSubmit = (author: Author) => {
-    setStoredAuthor(author);
-    setLocalAuthor(author);
+  const handleAuthorSubmit = ({ displayName }: Author) => {
+    setLocalAuthor(setStoredAuthor(displayName));
     setIsEditingName(false);
   };
 

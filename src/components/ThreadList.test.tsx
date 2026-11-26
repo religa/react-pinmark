@@ -52,6 +52,7 @@ function renderThreadList(
 
 describe('ThreadList', () => {
   beforeEach(() => {
+    sessionStorage.clear(); // ThreadList persists its filters here
     vi.stubGlobal('scrollTo', vi.fn());
     vi.stubGlobal('location', { pathname: '/page' });
   });
@@ -142,6 +143,43 @@ describe('ThreadList', () => {
   it('has close button', () => {
     renderThreadList();
     expect(screen.getByLabelText('Close thread list')).toBeInTheDocument();
+  });
+
+  it('"Waiting for you" filters to pending threads the current author opened', async () => {
+    const byAna = (id: string, status: Thread['status'], body: string) =>
+      makeThread({
+        id,
+        status,
+        comments: [
+          {
+            id: `c-${id}`,
+            threadId: id,
+            author: { displayName: 'Ana', id: 'ana-id' },
+            body,
+            attachments: [],
+            createdAt: '2024-01-01T00:00:00Z',
+          },
+        ],
+      });
+    const backend = createMockBackend([
+      byAna('p1', 'pending', 'Please verify me'),
+      byAna('o1', 'open', 'Still open'),
+      makeThread({ id: 'x', status: 'pending' }), // Alice's, not Ana's
+    ]);
+    render(
+      <CommentProvider backend={backend} projectId="test" author={{ displayName: 'Ana', id: 'ana-id' }}>
+        <ThreadList onNavigate={vi.fn()} />
+      </CommentProvider>,
+    );
+
+    const chip = await screen.findByRole('button', { name: /Waiting for you · 1/ });
+    expect(screen.getByText('Still open')).toBeInTheDocument();
+
+    fireEvent.click(chip);
+    expect(chip).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Please verify me')).toBeInTheDocument();
+    expect(screen.queryByText('Still open')).not.toBeInTheDocument();
+    expect(screen.queryByText('Hello world')).not.toBeInTheDocument();
   });
 
   it('has page filter and status filter', () => {

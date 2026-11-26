@@ -144,10 +144,13 @@ describe('MCP tool handlers', () => {
       await getHandler('pinmark_set_thread_status')({
         threadId: 'thread-1',
         status: 'pending',
+        author: 'Claude',
       });
-      expect(adapter.updateThread).toHaveBeenCalledWith('thread-1', {
-        status: 'pending',
-      });
+      expect(adapter.updateThread).toHaveBeenCalledWith(
+        'thread-1',
+        { status: 'pending' },
+        { displayName: 'Claude' },
+      );
     });
 
     it('returns the updated thread', async () => {

@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { micromark } from 'micromark';
-import type { Thread, Comment, Author, Attachment } from '../core/types';
+import type { Thread, Comment, Author, Attachment, ThreadEvent } from '../core/types';
 import { THREAD_STATUSES, STATUS_LABELS, type ThreadStatus } from '../core/status';
-import { formatRelativeTime } from '../core/format';
+import { formatRelativeTime, formatAbsoluteTime } from '../core/format';
 import { Composer } from './Composer';
 import { resolvePin } from '../core/pin-resolver';
 import { parseThreadContext, type ThreadContext } from '../core/thread-context';
@@ -117,7 +117,7 @@ function CommentItem({
     <div className="rc-comment">
       <div className="rc-comment-header">
         <span className="rc-comment-author">{comment.author.displayName}</span>
-        <span className="rc-comment-time">
+        <span className="rc-comment-time" title={formatAbsoluteTime(comment.createdAt)}>
           {formatRelativeTime(comment.createdAt)}
         </span>
         {threadContext && <ContextTooltip context={threadContext} />}
@@ -150,6 +150,45 @@ function CommentItem({
   );
 }
 
+function EventItem({ event }: { event: ThreadEvent }) {
+  return (
+    <div className="rc-event">
+      <span className="rc-event-actor">{event.actor.displayName}</span>
+      {' → '}
+      <span className={`rc-status-badge rc-status-badge--${event.toStatus}`}>
+        {STATUS_LABELS[event.toStatus]}
+      </span>
+      <span className="rc-event-time" title={formatAbsoluteTime(event.createdAt)}>
+        {' · '}
+        {formatRelativeTime(event.createdAt)}
+      </span>
+    </div>
+  );
+}
+
+type TimelineItem =
+  | { kind: 'comment'; at: string; comment: Comment; isFirst: boolean }
+  | { kind: 'event'; at: string; event: ThreadEvent };
+
+/** Comments and status changes in one chronological list. */
+function buildTimeline(thread: Thread): TimelineItem[] {
+  const items: TimelineItem[] = [
+    ...thread.comments.map((comment, i) => ({
+      kind: 'comment' as const,
+      at: comment.createdAt,
+      comment,
+      isFirst: i === 0,
+    })),
+    ...(thread.events ?? []).map((event) => ({
+      kind: 'event' as const,
+      at: event.createdAt,
+      event,
+    })),
+  ];
+  // Stable sort keeps comment order for equal timestamps.
+  return items.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+}
+
 /** One-click primary action per status; the status dropdown covers every other transition. */
 const QUICK_ACTIONS: Record<ThreadStatus, { label: string; to: ThreadStatus }> = {
   open: { label: 'Resolve', to: 'resolved' },
@@ -160,6 +199,8 @@ const QUICK_ACTIONS: Record<ThreadStatus, { label: string; to: ThreadStatus }> =
 
 interface ThreadPopoverProps {
   thread: Thread;
+  /** The pin's number, shown in the title ("#3 · 2 comments"). */
+  pinNumber?: number;
   onClose: () => void;
   onReply: (body: string, author: Author, attachments: Attachment[]) => void;
   onStatusChange: (status: ThreadStatus) => void | Promise<void>;
@@ -168,6 +209,7 @@ interface ThreadPopoverProps {
 
 export function ThreadPopover({
   thread,
+  pinNumber,
   onClose,
   onReply,
   onStatusChange,
@@ -178,6 +220,7 @@ export function ThreadPopover({
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const pinPos = useMemo(() => resolvePin(thread.pin), [thread.pin]);
   const threadContext = useMemo(() => parseThreadContext(thread), [thread]);
+  const timeline = useMemo(() => buildTimeline(thread), [thread]);
 
   const changeStatus = useCallback(
     async (status: ThreadStatus) => {
@@ -289,6 +332,7 @@ export function ThreadPopover({
     >
       <div className="rc-popover-header">
         <span className="rc-popover-title">
+          {pinNumber ? `#${pinNumber} · ` : ''}
           {thread.comments.length} comment{thread.comments.length !== 1 ? 's' : ''}
         </span>
         <div className="rc-popover-header-actions">
@@ -323,13 +367,17 @@ export function ThreadPopover({
       </div>
 
       <div className="rc-popover-comments">
-        {thread.comments.map((comment, i) => (
-          <CommentItem
-            key={comment.id}
-            comment={comment}
-            threadContext={i === 0 ? threadContext : null}
-          />
-        ))}
+        {timeline.map((item) =>
+          item.kind === 'comment' ? (
+            <CommentItem
+              key={item.comment.id}
+              comment={item.comment}
+              threadContext={item.isFirst ? threadContext : null}
+            />
+          ) : (
+            <EventItem key={item.event.id} event={item.event} />
+          ),
+        )}
       </div>
 
       <Composer

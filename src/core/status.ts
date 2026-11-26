@@ -45,6 +45,19 @@ export function parseStatusFilter(value: unknown): StatusFilter | undefined {
   return value;
 }
 
+/**
+ * A thread is waiting for its reporter when someone marked it `pending` and the
+ * reporter (the first comment's author) is `authorId`.
+ */
+export function isWaitingFor(
+  thread: { status: ThreadStatus; comments: readonly { author: { id?: string } }[] },
+  authorId: string | undefined,
+): boolean {
+  return (
+    !!authorId && thread.status === 'pending' && thread.comments[0]?.author.id === authorId
+  );
+}
+
 export function isActiveStatus(status: ThreadStatus): boolean {
   return ACTIVE_STATUSES.includes(status);
 }

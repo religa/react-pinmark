@@ -22,6 +22,7 @@ export type {
   PinPosition,
   Attachment,
   Thread,
+  ThreadEvent,
   Comment,
   ThreadFilter,
   GetThreadsParams,

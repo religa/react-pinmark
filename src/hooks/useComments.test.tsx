@@ -230,7 +230,9 @@ describe('useComments', () => {
       });
 
       expect(backend.createThread).toHaveBeenCalledWith(
-        expect.objectContaining({ author: { displayName: 'Bob' } }),
+        expect.objectContaining({
+          author: { displayName: 'Bob', id: expect.any(String) },
+        }),
       );
     });
   });
@@ -271,7 +273,11 @@ describe('useComments', () => {
       act(() => { store.getState().setThreads([makeThread()]); });
 
       await act(async () => { await result.current.setThreadStatus('thread-1', 'pending'); });
-      expect(backend.updateThread).toHaveBeenCalledWith('thread-1', { status: 'pending' });
+      expect(backend.updateThread).toHaveBeenCalledWith(
+        'thread-1',
+        { status: 'pending' },
+        expect.objectContaining({ displayName: expect.any(String) }),
+      );
     });
   });
 

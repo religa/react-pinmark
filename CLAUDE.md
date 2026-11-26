@@ -5,7 +5,7 @@ Embeddable pin-based commenting overlay for React applications. Fully implemente
 ## Commands
 
 ```bash
-npm test          # vitest (351 tests across 27 files)
+npm test          # vitest (362 tests across 27 files)
 npm run build     # tsup — ESM + CJS + DTS + CSS
 npm run typecheck # tsc --noEmit
 npm run lint      # eslint src/
@@ -46,7 +46,7 @@ src/
 │   ├── status.ts             THREAD_STATUSES (single source of truth), StatusFilter, active/filter helpers
 │   ├── state.ts              Zustand vanilla store (createStore — one instance per provider)
 │   ├── context-capture.ts    captureContext() — viewport, UA, custom metadata
-│   ├── author.ts             getStoredAuthor / setStoredAuthor via localStorage (rc_author key)
+│   ├── author.ts             getStoredAuthor / setStoredAuthor via localStorage (rc_author key); stable author id, created on first name save
 │   ├── pin-resolver.ts       resolvePin(), detectSelector(), createPinPosition()
 │   ├── pin-numbers.ts        computePinNumbers() — stable per-page pin numbers shared by overlay, list, export
 │   └── screenshot.ts         captureViewport() — lazy html-to-image capture; hides .rc-root + rc-screenshot-hide elements
@@ -54,13 +54,13 @@ src/
 │   ├── adapter.ts            BackendAdapter (7 methods) + AttachmentAdapter (uploadAttachment) interfaces
 │   └── supabase/
 │       ├── index.ts          createSupabaseAdapter — implements both interfaces; asPromise() helper
-│       └── migrations/       001_create_threads.sql, 002_create_comments.sql, 003_create_storage.sql, 004_add_delete_policies.sql, 005_grant_anon_access.sql, 006_extend_thread_status.sql
+│       └── migrations/       001_create_threads.sql, 002_create_comments.sql, 003_create_storage.sql, 004_add_delete_policies.sql, 005_grant_anon_access.sql, 006_extend_thread_status.sql, 007_create_thread_events.sql
 ├── components/
 │   ├── CommentContext.ts     CommentContextValue + useCommentContext() hook
 │   ├── CommentProvider.tsx   creates store, fetches threads on mount + window focus
 │   ├── CommentOverlay.tsx    portal overlay: pins, popover, thread list, floating buttons, configurable shortcutKey/Esc, screenshot capture
 │   ├── Pin.tsx               numbered circle, resolves position, resize-aware, pulse animation
-│   ├── ThreadPopover.tsx     comment list (markdown), composer, status quick-action + dropdown, Esc/click-outside close
+│   ├── ThreadPopover.tsx     comments + status history timeline (markdown), composer, status quick-action + dropdown, Esc/click-outside close
 │   ├── Composer.tsx          textarea, author prompt, image upload button + paste, attachment previews, screenshot preview
 │   ├── AuthorPrompt.tsx      first-time name prompt (persists to localStorage)
 │   └── ThreadList.tsx        slide-in panel, page/status filters, thread rows, navigate-to-pin
@@ -93,6 +93,8 @@ src/
 - **Screenshot capture**: `captureViewport()` in `screenshot.ts` lazily imports `html-to-image` so it's excluded from the initial bundle. Fired on pin click when `captureScreenshot && attachmentAdapter`. `html-to-image`'s `filter` callback excludes `.rc-root` and `.rc-screenshot-hide` elements. `screenshotRef` is a ref (not state) to avoid re-renders; cleared on Escape and after submit. A 10-second timeout prevents hangs if the capture promise never resolves.
 - **Cross-page navigation**: `CommentOverlay` accepts an optional `onNavigatePage` callback. When a user clicks a thread from a different page in the ThreadList, the callback is invoked with the target `pageUrl`. SPA apps provide their router's navigate function; without it, falls back to `window.location.href`. A `pendingNavigateThreadId` state + effect handles scrolling to the pin after the page transition. MPA fallback persists the pending thread in `sessionStorage` (`rc_pending_thread` key) and reads it on mount.
 - **Thread statuses**: `open` → `pending` (fixed, waiting for the reporter to check) → `resolved`, plus `dismissed`. `src/core/status.ts` is the only place they're defined; the types, CLI/MCP checks and enums, and UI dropdowns all come from it. Filters also accept `active` (open + pending) and `all`. The MCP `pinmark_set_thread_status` tool tells agents to use `pending` rather than `resolved`.
+- **Status history**: `BackendAdapter.updateThread(id, patch, actor)` records a `status_changed` event; `Thread.events` is optional. The Supabase adapter keeps history in `rc_thread_events` (migration 007) and treats it as auxiliary: a missing or failing events table only warns, and never blocks loading threads or changing a status.
+- **Author identity / "Waiting for you"**: `Author.id` is generated on the first name save (`setStoredAuthor`) and kept on rename; old stored names are backfilled on read. `isWaitingFor(thread, authorId)` (status.ts) = pending + first comment's `author.id` matches. `useComments().currentAuthor` is the prop author or the stored one.
 - **Data loading**: `CommentProvider`/`refreshThreads` always fetch *all* threads for the project; the ThreadList filter is client-side only. Passing the UI filter to `getThreads` would strip pins from the overlay. `setThreads` re-syncs `activeThread` by id.
 - **SSR**: `CommentOverlay` renders `null` until `useIsClient()` is true (portal needs `document.body`). `src/components/ssr.test.tsx` renders under the node environment to catch regressions.
 - **CSS** ships as `dist/index.css` — consumers must import it separately.

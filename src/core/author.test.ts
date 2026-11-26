@@ -25,13 +25,28 @@ describe('author identity', () => {
     expect(getStoredAuthor()).toBeNull();
   });
 
-  it('stores and retrieves an author', () => {
-    setStoredAuthor({ displayName: 'Alice' });
-    expect(getStoredAuthor()).toEqual({ displayName: 'Alice' });
+  it('stores an author with a generated id', () => {
+    const saved = setStoredAuthor('Alice');
+    expect(saved.displayName).toBe('Alice');
+    expect(saved.id).toMatch(/.{16,}/);
+    expect(getStoredAuthor()).toEqual(saved);
+  });
+
+  it('keeps the id when the name changes', () => {
+    const first = setStoredAuthor('Alice');
+    const renamed = setStoredAuthor('Alice K.');
+    expect(renamed).toEqual({ displayName: 'Alice K.', id: first.id });
+  });
+
+  it('gives a name saved before ids existed a stable id', () => {
+    mockStorage.setItem('rc_author', JSON.stringify({ displayName: 'Old' }));
+    const a = getStoredAuthor();
+    expect(a?.id).toBeTruthy();
+    expect(getStoredAuthor()?.id).toBe(a?.id);
   });
 
   it('clears the stored author', () => {
-    setStoredAuthor({ displayName: 'Bob' });
+    setStoredAuthor('Bob');
     clearStoredAuthor();
     expect(getStoredAuthor()).toBeNull();
   });
