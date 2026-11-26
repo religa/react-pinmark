@@ -1,16 +1,18 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import type { Thread } from '../core/types';
 import { resolvePin } from '../core/pin-resolver';
+import { STATUS_LABELS } from '../core/status';
 
 interface PinProps {
   thread: Thread;
-  index: number;
+  /** Display number from computePinNumbers(). */
+  number: number;
   isActive: boolean;
   onClick: () => void;
   highlighted?: boolean;
 }
 
-export function Pin({ thread, index, isActive, onClick, highlighted }: PinProps) {
+export function Pin({ thread, number, isActive, onClick, highlighted }: PinProps) {
   const [position, setPosition] = useState(() => resolvePin(thread.pin));
 
   const updatePosition = useCallback(() => {
@@ -30,13 +32,12 @@ export function Pin({ thread, index, isActive, onClick, highlighted }: PinProps)
     };
   }, [updatePosition]);
 
-  const isResolved = thread.status === 'resolved';
 
   return (
     <button
       className={[
         'rc-pin',
-        isResolved ? 'rc-pin--resolved' : '',
+        thread.status !== 'open' ? `rc-pin--${thread.status}` : '',
         isActive ? 'rc-pin--active' : '',
         highlighted ? 'rc-pin--highlighted' : '',
       ]
@@ -48,10 +49,10 @@ export function Pin({ thread, index, isActive, onClick, highlighted }: PinProps)
         top: `${position.top}px`,
       }}
       onClick={onClick}
-      aria-label={`Comment thread ${index + 1}${isResolved ? ' (resolved)' : ''}`}
+      aria-label={`Comment thread ${number}${thread.status !== 'open' ? ` (${STATUS_LABELS[thread.status].toLowerCase()})` : ''}`}
       data-thread-id={thread.id}
     >
-      {index + 1}
+      {number}
     </button>
   );
 }

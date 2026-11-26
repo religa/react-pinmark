@@ -1,14 +1,20 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig([
-  // ESM — unbundled, preserves module structure for tree-shaking
+  // ESM — bundled per entry with code splitting. Shared code lands in chunks, and
+  // the output stays tree-shakeable. (Unbundled output emitted extensionless
+  // relative imports, which native Node ESM cannot resolve.)
   {
-    entry: ['src/**/*.ts', 'src/**/*.tsx', '!src/**/*.test.*', '!src/test-setup.ts', '!src/cli/**', '!src/mcp/**'],
+    entry: {
+      index: 'src/index.ts',
+      'adapters/supabase/index': 'src/adapters/supabase/index.ts',
+      'utils/index': 'src/utils/index.ts',
+    },
     format: 'esm',
     dts: true,
     sourcemap: true,
     clean: true,
-    bundle: false,
+    splitting: true,
     outDir: 'dist/esm',
     external: ['react', 'react-dom', '@supabase/supabase-js', 'html-to-image'],
   },

@@ -10,6 +10,7 @@
   --rc-color-border: #e5e7eb;
   --rc-color-surface: #f9fafb;
   --rc-color-resolved: #9ca3af;
+  --rc-color-pending: #d97706;
   --rc-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --rc-font-size: 13px;
   --rc-radius: 8px;
@@ -94,9 +95,19 @@
   box-shadow: 0 0 0 3px var(--rc-color-primary), 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
-.rc-pin--resolved {
+.rc-pin--resolved,
+.rc-pin--dismissed {
   background: var(--rc-color-resolved);
   opacity: 0.7;
+}
+
+.rc-pin--dismissed {
+  border-style: dashed;
+  text-decoration: line-through;
+}
+
+.rc-pin--pending {
+  background: var(--rc-color-pending);
 }
 
 .rc-pin--highlighted {
@@ -139,6 +150,7 @@
 .rc-popover-title {
   font-weight: 600;
   font-size: 13px;
+  white-space: nowrap;
 }
 
 .rc-popover-header-actions {
@@ -148,6 +160,7 @@
 }
 
 .rc-popover-resolve {
+  white-space: nowrap;
   font-size: 12px;
   padding: 3px 8px;
   border-radius: 4px;
@@ -163,6 +176,21 @@
 }
 
 .rc-popover-resolve:focus-visible {
+  outline: 2px solid var(--rc-color-primary);
+  outline-offset: 1px;
+}
+
+.rc-popover-status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid var(--rc-color-border);
+  cursor: pointer;
+  font-family: var(--rc-font-family);
+}
+
+.rc-popover-status:focus-visible {
   outline: 2px solid var(--rc-color-primary);
   outline-offset: 1px;
 }
@@ -919,6 +947,16 @@
   color: #15803d;
 }
 
+.rc-status-badge--pending {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.rc-status-badge--dismissed {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
 .rc-root[data-color-scheme='dark'] .rc-status-badge--open {
   background: #1e3a5f;
   color: #93c5fd;
@@ -926,6 +964,14 @@
 .rc-root[data-color-scheme='dark'] .rc-status-badge--resolved {
   background: #14532d;
   color: #86efac;
+}
+.rc-root[data-color-scheme='dark'] .rc-status-badge--pending {
+  background: #78350f;
+  color: #fcd34d;
+}
+.rc-root[data-color-scheme='dark'] .rc-status-badge--dismissed {
+  background: #313244;
+  color: #a6adc8;
 }
 @media (prefers-color-scheme: dark) {
   .rc-root[data-color-scheme='system'] .rc-status-badge--open {
@@ -935,6 +981,14 @@
   .rc-root[data-color-scheme='system'] .rc-status-badge--resolved {
     background: #14532d;
     color: #86efac;
+  }
+  .rc-root[data-color-scheme='system'] .rc-status-badge--pending {
+    background: #78350f;
+    color: #fcd34d;
+  }
+  .rc-root[data-color-scheme='system'] .rc-status-badge--dismissed {
+    background: #313244;
+    color: #a6adc8;
   }
 }
 
@@ -1072,6 +1126,7 @@
     --rc-color-border: #313244;
     --rc-color-surface: #181825;
     --rc-color-resolved: #585b70;
+    --rc-color-pending: #f59e0b;
   }
 }
 
@@ -1082,6 +1137,7 @@
   --rc-color-border: #313244;
   --rc-color-surface: #181825;
   --rc-color-resolved: #585b70;
+  --rc-color-pending: #f59e0b;
 }
 
 .rc-root[data-color-scheme='light'] {
@@ -1091,11 +1147,13 @@
   --rc-color-border: #e5e7eb;
   --rc-color-surface: #f9fafb;
   --rc-color-resolved: #9ca3af;
+  --rc-color-pending: #d97706;
 }
 
 /* Disabled async button states */
 .rc-bulk-btn:disabled,
-.rc-popover-resolve:disabled {
+.rc-popover-resolve:disabled,
+.rc-popover-status:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

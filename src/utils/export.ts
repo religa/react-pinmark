@@ -1,9 +1,10 @@
 import type { BackendAdapter } from '../adapters/adapter';
 import type { Thread } from '../core/types';
+import { THREAD_STATUSES, type StatusFilter } from '../core/status';
 
 export interface ExportOptions {
   format: 'json' | 'markdown';
-  status?: 'open' | 'resolved' | 'all';
+  status?: StatusFilter;
   pageUrl?: string;
 }
 
@@ -42,14 +43,15 @@ function formatExportJson(projectId: string, threads: Thread[]): string {
 }
 
 function formatExportMarkdown(projectId: string, threads: Thread[]): string {
-  const open = threads.filter((t) => t.status === 'open').length;
-  const resolved = threads.filter((t) => t.status === 'resolved').length;
+  const counts = THREAD_STATUSES.map(
+    (s) => `${s}: ${threads.filter((t) => t.status === s).length}`,
+  ).join(', ');
   const lines: string[] = [];
 
   lines.push(`# Feedback Report — ${projectId}`);
   lines.push('');
   lines.push(
-    `Exported: ${new Date().toISOString()} | Threads: ${threads.length} (open: ${open}, resolved: ${resolved})`,
+    `Exported: ${new Date().toISOString()} | Threads: ${threads.length} (${counts})`,
   );
 
   // Group by pageUrl

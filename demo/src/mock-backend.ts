@@ -1,5 +1,6 @@
 import type { BackendAdapter } from 'react-pinmark';
-import type { Thread, Comment, GetThreadsParams, CreateThreadInput, CreateCommentInput } from 'react-pinmark';
+import type { Thread, Comment, GetThreadsParams, CreateThreadInput, CreateCommentInput, ThreadStatus } from 'react-pinmark';
+import { matchesStatusFilter } from 'react-pinmark';
 
 const STORAGE_KEY = 'rc_demo_threads';
 
@@ -20,9 +21,7 @@ export const mockBackend: BackendAdapter = {
   async getThreads(params: GetThreadsParams): Promise<Thread[]> {
     let threads = load();
     if (params.pageUrl) threads = threads.filter((t) => t.pageUrl === params.pageUrl);
-    if (params.status && params.status !== 'all') {
-      threads = threads.filter((t) => t.status === params.status);
-    }
+    threads = threads.filter((t) => matchesStatusFilter(t.status, params.status));
     return threads;
   },
 
@@ -53,7 +52,7 @@ export const mockBackend: BackendAdapter = {
     return thread;
   },
 
-  async updateThread(id: string, patch: { status: 'open' | 'resolved' }): Promise<Thread> {
+  async updateThread(id: string, patch: { status: ThreadStatus }): Promise<Thread> {
     const threads = load();
     const idx = threads.findIndex((t) => t.id === id);
     if (idx === -1) throw new Error(`Thread ${id} not found`);
@@ -87,5 +86,13 @@ export const mockBackend: BackendAdapter = {
     thread.comments.push(comment);
     save(threads);
     return comment;
+  },
+
+  async deleteComment(id: string): Promise<void> {
+    const threads = load();
+    for (const thread of threads) {
+      thread.comments = thread.comments.filter((c) => c.id !== id);
+    }
+    save(threads);
   },
 };

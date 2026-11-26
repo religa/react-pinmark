@@ -3,26 +3,30 @@ import { resolveConfig } from './config';
 import { createCliAdapter } from './client';
 import {
   listThreads,
-  resolveThread,
+  setThreadStatus,
   deleteThread,
   listComments,
   addComment,
   deleteComment,
 } from './commands';
 import { exportCommand } from './export';
+import { THREAD_STATUSES, STATUS_FILTERS } from '../core/status';
+
+const STATUS_FILTER_USAGE = STATUS_FILTERS.join('|');
 
 const HELP = `react-pinmark — CLI for managing pinmark threads and comments
 
 Usage: react-pinmark <command> <subcommand> [options]
 
 Commands:
-  threads list    [--status open|resolved|all] [--page <url>] [--format json]
-  threads resolve <thread-id>
+  threads list    [--status ${STATUS_FILTER_USAGE}] [--page <url>] [--format json]
+  threads status  <thread-id> <${THREAD_STATUSES.join('|')}>
+  threads resolve <thread-id>        (shorthand for: threads status <id> resolved)
   threads delete  <thread-id>
   comments list   <thread-id> [--format json]
   comments add    <thread-id> --body <text> [--author <name>]
   comments delete <comment-id>
-  export          [--format json|markdown] [--status open|resolved|all] [--page <url>]
+  export          [--format json|markdown] [--status ${STATUS_FILTER_USAGE}] [--page <url>]
 
 Global options:
   --project <id>          Override project ID
@@ -59,7 +63,7 @@ async function main() {
   });
 
   const adapter = createCliAdapter(config);
-  const [command, subcommand, arg] = positionals;
+  const [command, subcommand, arg, arg2] = positionals;
 
   const opts = {
     status: values.status,
@@ -74,9 +78,12 @@ async function main() {
       switch (subcommand) {
         case 'list':
           return listThreads(adapter, config, opts);
+        case 'status':
+          if (!arg) throw new Error('Usage: threads status <thread-id> <status>');
+          return setThreadStatus(adapter, arg, arg2);
         case 'resolve':
           if (!arg) throw new Error('Usage: threads resolve <thread-id>');
-          return resolveThread(adapter, arg);
+          return setThreadStatus(adapter, arg, 'resolved');
         case 'delete':
           if (!arg) throw new Error('Usage: threads delete <thread-id>');
           return deleteThread(adapter, arg);

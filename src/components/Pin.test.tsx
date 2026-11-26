@@ -22,11 +22,11 @@ describe('Pin', () => {
     vi.stubGlobal('scrollY', 0);
   });
 
-  it('renders with the correct index number', () => {
+  it('renders the given pin number', () => {
     render(
       <Pin
         thread={makeThread()}
-        index={2}
+        number={3}
         isActive={false}
         onClick={vi.fn()}
       />,
@@ -38,7 +38,7 @@ describe('Pin', () => {
     render(
       <Pin
         thread={makeThread({ pin: { x: 50, y: 200 } })}
-        index={0}
+        number={1}
         isActive={false}
         onClick={vi.fn()}
       />,
@@ -51,7 +51,7 @@ describe('Pin', () => {
   it('calls onClick when clicked', () => {
     const onClick = vi.fn();
     render(
-      <Pin thread={makeThread()} index={0} isActive={false} onClick={onClick} />,
+      <Pin thread={makeThread()} number={1} isActive={false} onClick={onClick} />,
     );
     fireEvent.click(screen.getByRole('button'));
     expect(onClick).toHaveBeenCalledTimes(1);
@@ -59,7 +59,7 @@ describe('Pin', () => {
 
   it('applies active class when isActive is true', () => {
     render(
-      <Pin thread={makeThread()} index={0} isActive={true} onClick={vi.fn()} />,
+      <Pin thread={makeThread()} number={1} isActive={true} onClick={vi.fn()} />,
     );
     expect(screen.getByRole('button').className).toContain('rc-pin--active');
   });
@@ -68,7 +68,7 @@ describe('Pin', () => {
     render(
       <Pin
         thread={makeThread({ status: 'resolved' })}
-        index={0}
+        number={1}
         isActive={false}
         onClick={vi.fn()}
       />,
@@ -76,11 +76,25 @@ describe('Pin', () => {
     expect(screen.getByRole('button').className).toContain('rc-pin--resolved');
   });
 
+  it('applies pending class and announces status for pending threads', () => {
+    render(
+      <Pin
+        thread={makeThread({ status: 'pending' })}
+        number={1}
+        isActive={false}
+        onClick={vi.fn()}
+      />,
+    );
+    const pin = screen.getByRole('button');
+    expect(pin.className).toContain('rc-pin--pending');
+    expect(pin).toHaveAccessibleName('Comment thread 1 (pending)');
+  });
+
   it('repositions on window resize', () => {
     render(
       <Pin
         thread={makeThread({ pin: { x: 50, y: 200 } })}
-        index={0}
+        number={1}
         isActive={false}
         onClick={vi.fn()}
       />,

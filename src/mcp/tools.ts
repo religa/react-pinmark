@@ -6,6 +6,19 @@ import {
 import type { BackendAdapter } from '../adapters/adapter';
 import type { PinmarkConfig } from '../cli/config';
 import { exportThreads } from '../utils/export';
+import {
+  THREAD_STATUSES,
+  STATUS_FILTERS,
+  parseStatusFilter,
+  parseThreadStatus,
+} from '../core/status';
+
+const STATUS_FILTER_SCHEMA = {
+  type: 'string',
+  enum: STATUS_FILTERS,
+  description:
+    'Filter by thread status. "active" = open + pending (needs attention). Default: all',
+};
 
 interface ToolDef {
   name: string;
@@ -20,11 +33,7 @@ const TOOLS: ToolDef[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        status: {
-          type: 'string',
-          enum: ['open', 'resolved', 'all'],
-          description: 'Filter by thread status (default: all)',
-        },
+        status: STATUS_FILTER_SCHEMA,
         page: {
           type: 'string',
           description: 'Filter by page URL',
@@ -60,25 +69,24 @@ const TOOLS: ToolDef[] = [
     },
   },
   {
-    name: 'pinmark_resolve_thread',
-    description: 'Mark a thread as resolved',
+    name: 'pinmark_set_thread_status',
+    description:
+      'Change a thread\'s status. After you have addressed a thread, set it to "pending" so the ' +
+      'reporter can verify the fix — only use "resolved" when the user explicitly asks you to. ' +
+      'Use "dismissed" for won\'t-fix / by-design / duplicate, and "open" to reopen.',
     inputSchema: {
       type: 'object',
       properties: {
         threadId: { type: 'string', description: 'The thread ID' },
+        status: {
+          type: 'string',
+          enum: THREAD_STATUSES,
+          description:
+            'open = needs action; pending = fixed, awaiting reporter verification; ' +
+            'resolved = verified fixed; dismissed = won\'t fix',
+        },
       },
-      required: ['threadId'],
-    },
-  },
-  {
-    name: 'pinmark_reopen_thread',
-    description: 'Reopen a resolved thread',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        threadId: { type: 'string', description: 'The thread ID' },
-      },
-      required: ['threadId'],
+      required: ['threadId', 'status'],
     },
   },
   {
@@ -114,11 +122,7 @@ const TOOLS: ToolDef[] = [
           enum: ['json', 'markdown'],
           description: 'Export format (default: json)',
         },
-        status: {
-          type: 'string',
-          enum: ['open', 'resolved', 'all'],
-          description: 'Filter by thread status',
-        },
+        status: STATUS_FILTER_SCHEMA,
         page: {
           type: 'string',
           description: 'Filter by page URL',
@@ -145,12 +149,21 @@ export type ToolHandler = (
   args: Record<string, unknown>,
 ) => Promise<{ content: { type: 'text'; text: string }[]; isError?: boolean }>;
 
-const VALID_STATUSES = new Set(['open', 'resolved', 'all']);
+// The low-level setRequestHandler API does not validate args against inputSchema,
+// so every handler validates its own input. Thrown errors become isError results.
+function requireString(args: Record<string, unknown>, key: string): string {
+  const value = args[key];
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(`${key} is required and must be a non-empty string`);
+  }
+  return value;
+}
 
-function parseStatus(value: unknown): 'open' | 'resolved' | 'all' {
-  return typeof value === 'string' && VALID_STATUSES.has(value)
-    ? (value as 'open' | 'resolved' | 'all')
-    : 'all';
+function optionalString(args: Record<string, unknown>, key: string): string | undefined {
+  const value = args[key];
+  if (value === undefined || value === '') return undefined;
+  if (typeof value !== 'string') throw new Error(`${key} must be a string`);
+  return value;
 }
 
 export function buildToolHandlers(
@@ -160,64 +173,56 @@ export function buildToolHandlers(
   const handlers = new Map<string, ToolHandler>();
 
   handlers.set('pinmark_list_threads', async (args) => {
-    const status = parseStatus(args.status);
     const threads = await adapter.getThreads({
       projectId: config.projectId,
-      status: status as 'open' | 'resolved' | 'all',
-      pageUrl: args.page as string | undefined,
+      status: parseStatusFilter(args.status) ?? 'all',
+      pageUrl: optionalString(args, 'page'),
     });
     return jsonResult(threads);
   });
 
   handlers.set('pinmark_get_comments', async (args) => {
-    const comments = await adapter.getComments(args.threadId as string);
+    const comments = await adapter.getComments(requireString(args, 'threadId'));
     return jsonResult(comments);
   });
 
   handlers.set('pinmark_add_comment', async (args) => {
     const comment = await adapter.createComment({
-      threadId: args.threadId as string,
-      body: args.body as string,
-      author: { displayName: (args.author as string) ?? 'MCP' },
+      threadId: requireString(args, 'threadId'),
+      body: requireString(args, 'body'),
+      author: { displayName: optionalString(args, 'author') ?? 'MCP' },
     });
     return jsonResult(comment);
   });
 
-  handlers.set('pinmark_resolve_thread', async (args) => {
-    const thread = await adapter.updateThread(args.threadId as string, {
-      status: 'resolved',
-    });
-    return jsonResult(thread);
-  });
-
-  handlers.set('pinmark_reopen_thread', async (args) => {
-    const thread = await adapter.updateThread(args.threadId as string, {
-      status: 'open',
+  handlers.set('pinmark_set_thread_status', async (args) => {
+    const thread = await adapter.updateThread(requireString(args, 'threadId'), {
+      status: parseThreadStatus(args.status),
     });
     return jsonResult(thread);
   });
 
   handlers.set('pinmark_delete_thread', async (args) => {
-    await adapter.deleteThread(args.threadId as string);
-    return jsonResult({ deleted: true, threadId: args.threadId });
+    const threadId = requireString(args, 'threadId');
+    await adapter.deleteThread(threadId);
+    return jsonResult({ deleted: true, threadId });
   });
 
   handlers.set('pinmark_delete_comment', async (args) => {
-    await adapter.deleteComment(args.commentId as string);
-    return jsonResult({ deleted: true, commentId: args.commentId });
+    const commentId = requireString(args, 'commentId');
+    await adapter.deleteComment(commentId);
+    return jsonResult({ deleted: true, commentId });
   });
 
   handlers.set('pinmark_export', async (args) => {
     const format = args.format === 'markdown' ? 'markdown' : 'json';
     const output = await exportThreads(adapter, config.projectId, {
       format,
-      status: parseStatus(args.status),
-      pageUrl: args.page as string | undefined,
+      status: parseStatusFilter(args.status),
+      pageUrl: optionalString(args, 'page'),
     });
-    if (format === 'json') {
-      return { content: [{ type: 'text' as const, text: output }] };
-    }
-    return jsonResult(output);
+    // Both formats are already serialized text; JSON-encoding markdown would escape it.
+    return { content: [{ type: 'text' as const, text: output }] };
   });
 
   return handlers;

@@ -1,6 +1,7 @@
 import type { BackendAdapter } from '../adapters/adapter';
 import type { PinmarkConfig } from './config';
 import { formatThreadsTable, formatCommentsTable } from './format';
+import { parseStatusFilter, parseThreadStatus } from '../core/status';
 
 export interface CommandOptions {
   status?: string;
@@ -15,10 +16,7 @@ export async function listThreads(
   config: PinmarkConfig,
   opts: CommandOptions,
 ): Promise<void> {
-  const validStatuses = new Set(['open', 'resolved', 'all']);
-  const status = validStatuses.has(opts.status ?? '')
-    ? (opts.status as 'open' | 'resolved' | 'all')
-    : 'all';
+  const status = parseStatusFilter(opts.status) ?? 'all';
   const threads = await adapter.getThreads({
     projectId: config.projectId,
     pageUrl: opts.page,
@@ -31,12 +29,14 @@ export async function listThreads(
   }
 }
 
-export async function resolveThread(
+export async function setThreadStatus(
   adapter: BackendAdapter,
   threadId: string,
+  rawStatus: string | undefined,
 ): Promise<void> {
-  await adapter.updateThread(threadId, { status: 'resolved' });
-  console.log(`Resolved thread ${threadId}`);
+  const status = parseThreadStatus(rawStatus);
+  await adapter.updateThread(threadId, { status });
+  console.log(`Set thread ${threadId} to ${status}`);
 }
 
 export async function deleteThread(

@@ -21,14 +21,13 @@ export function resolveConfig(
   const config: Partial<PinmarkConfig> = { ...overrides };
   const startDir = cwd ?? process.cwd();
 
-  // 2. Dotfiles — walk up from cwd
+  // 2. Environment variables — beat files, so CI/shell settings can't be
+  //    silently overridden by a checked-in or stale dotfile.
+  mergeEnvVars(config);
+
+  // 3. Dotfiles — walk up from cwd
   if (!isComplete(config)) {
     mergeDotfiles(config, startDir);
-  }
-
-  // 3. Environment variables
-  if (!isComplete(config)) {
-    mergeEnvVars(config);
   }
 
   // 4. Source scan (projectId only)
@@ -46,7 +45,7 @@ export function resolveConfig(
   if (missing.length > 0) {
     throw new Error(
       `Missing pinmark config: ${missing.join(', ')}. ` +
-        'Provide via CLI flags, .pinmarkrc, .env.pinmark, .env, or environment variables.',
+        'Provide via CLI flags, PINMARK_* environment variables, .pinmarkrc, .env.pinmark, or .env.',
     );
   }
 
@@ -57,6 +56,11 @@ function isComplete(config: Partial<PinmarkConfig>): boolean {
   return !!(config.supabaseUrl && config.supabaseAnonKey && config.projectId);
 }
 
+/**
+ * Walks up from startDir to the nearest directory whose dotfiles define at least
+ * one pinmark setting, and merges from that directory only. A directory whose
+ * dotfiles have no pinmark keys (e.g. an app's plain .env) does not stop the walk.
+ */
 function mergeDotfiles(
   config: Partial<PinmarkConfig>,
   startDir: string,
@@ -64,58 +68,45 @@ function mergeDotfiles(
   let dir = resolve(startDir);
 
   while (true) {
-    const rcPath = join(dir, '.pinmarkrc');
-    const envPinmarkPath = join(dir, '.env.pinmark');
-    const envPath = join(dir, '.env');
-
-    const hasAny =
-      existsSync(rcPath) || existsSync(envPinmarkPath) || existsSync(envPath);
-
-    if (hasAny) {
-      // .pinmarkrc (JSON, camelCase keys)
-      if (existsSync(rcPath)) {
-        try {
-          const json = JSON.parse(readFileSync(rcPath, 'utf-8'));
-          if (json.supabaseUrl && !config.supabaseUrl)
-            config.supabaseUrl = json.supabaseUrl;
-          if (json.supabaseAnonKey && !config.supabaseAnonKey)
-            config.supabaseAnonKey = json.supabaseAnonKey;
-          if (json.projectId && !config.projectId)
-            config.projectId = json.projectId;
-        } catch {
-          // skip malformed JSON
-        }
+    const found = readDirConfig(dir);
+    if (Object.keys(found).length > 0) {
+      for (const [field, value] of Object.entries(found) as [keyof PinmarkConfig, string][]) {
+        if (!config[field]) config[field] = value;
       }
-
-      // .env.pinmark (dotenv, PINMARK_* keys)
-      if (existsSync(envPinmarkPath)) {
-        mergeFromDotenv(config, envPinmarkPath);
-      }
-
-      // .env (standard dotenv, only PINMARK_* keys)
-      if (existsSync(envPath)) {
-        mergeFromDotenv(config, envPath);
-      }
-
-      break; // stop walking at first directory with any dotfile
+      return;
     }
 
-    if (dirname(dir) === dir) break; // reached filesystem root
+    if (dirname(dir) === dir) return; // reached filesystem root
     dir = dirname(dir);
   }
 }
 
-function mergeFromDotenv(
-  config: Partial<PinmarkConfig>,
-  filePath: string,
-): void {
-  const entries = parseDotenv(readFileSync(filePath, 'utf-8'));
-  for (const [key, value] of entries) {
-    const field = ENV_KEY_MAP[key];
-    if (field && !config[field]) {
-      (config as Record<string, string>)[field] = value;
+/** Pinmark settings defined in one directory. Precedence: .pinmarkrc > .env.pinmark > .env */
+function readDirConfig(dir: string): Partial<PinmarkConfig> {
+  const found: Partial<PinmarkConfig> = {};
+
+  const rcPath = join(dir, '.pinmarkrc');
+  if (existsSync(rcPath)) {
+    try {
+      const json = JSON.parse(readFileSync(rcPath, 'utf-8'));
+      for (const field of Object.values(ENV_KEY_MAP)) {
+        if (typeof json[field] === 'string' && json[field]) found[field] = json[field];
+      }
+    } catch {
+      // skip malformed JSON
     }
   }
+
+  for (const name of ['.env.pinmark', '.env']) {
+    const path = join(dir, name);
+    if (!existsSync(path)) continue;
+    for (const [key, value] of parseDotenv(readFileSync(path, 'utf-8'))) {
+      const field = ENV_KEY_MAP[key];
+      if (field && value && !found[field]) found[field] = value;
+    }
+  }
+
+  return found;
 }
 
 function mergeEnvVars(config: Partial<PinmarkConfig>): void {

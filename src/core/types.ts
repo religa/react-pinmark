@@ -1,3 +1,5 @@
+import type { ThreadStatus, StatusFilter } from './status';
+
 export interface Author {
   displayName: string;
 }
@@ -38,7 +40,7 @@ export interface Thread {
   projectId: string;
   pageUrl: string;
   pin: PinPosition;
-  status: 'open' | 'resolved';
+  status: ThreadStatus;
   metadata?: Record<string, unknown>;
   createdAt: string;
   comments: Comment[];
@@ -55,13 +57,13 @@ export interface Comment {
 
 export interface ThreadFilter {
   pageUrl?: string;
-  status?: 'open' | 'resolved' | 'all';
+  status?: StatusFilter;
 }
 
 export interface GetThreadsParams {
   projectId: string;
   pageUrl?: string;
-  status?: 'open' | 'resolved' | 'all';
+  status?: StatusFilter;
 }
 
 export interface CreateThreadInput {

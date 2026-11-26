@@ -3,7 +3,7 @@ import type { BackendAdapter } from '../adapters/adapter';
 import type { Thread, Comment } from '../core/types';
 import {
   listThreads,
-  resolveThread,
+  setThreadStatus,
   deleteThread,
   listComments,
   addComment,
@@ -100,13 +100,29 @@ describe('CLI commands', () => {
     });
   });
 
-  describe('resolveThread', () => {
-    it('calls updateThread with resolved status', async () => {
-      await resolveThread(adapter, 'thread-1');
+  describe('listThreads status validation', () => {
+    it('rejects a mistyped status instead of listing everything', async () => {
+      await expect(listThreads(adapter, config, { status: 'resolvd' })).rejects.toThrow(
+        'Status filter must be one of',
+      );
+      expect(adapter.getThreads).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('setThreadStatus', () => {
+    it('calls updateThread with the given status', async () => {
+      await setThreadStatus(adapter, 'thread-1', 'pending');
       expect(adapter.updateThread).toHaveBeenCalledWith('thread-1', {
-        status: 'resolved',
+        status: 'pending',
       });
-      expect(consoleSpy).toHaveBeenCalledWith('Resolved thread thread-1');
+      expect(consoleSpy).toHaveBeenCalledWith('Set thread thread-1 to pending');
+    });
+
+    it('rejects an unknown status', async () => {
+      await expect(setThreadStatus(adapter, 'thread-1', 'done')).rejects.toThrow(
+        'Status must be one of: open, pending, resolved, dismissed',
+      );
+      expect(adapter.updateThread).not.toHaveBeenCalled();
     });
   });
 

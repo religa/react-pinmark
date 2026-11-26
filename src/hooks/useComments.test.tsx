@@ -160,11 +160,12 @@ describe('useComments', () => {
       (backend.getThreads as ReturnType<typeof vi.fn>).mockResolvedValue(threads);
       const { result } = setup({ backend });
 
+      // The UI filter must not reach the backend: the store also feeds overlay pins.
+      act(() => { result.current.setFilter({ status: 'resolved', pageUrl: '/other' }); });
       await act(async () => { await result.current.refreshThreads(); });
-      expect(backend.getThreads).toHaveBeenCalledWith({
+      expect(backend.getThreads).toHaveBeenCalledWith({ projectId: 'test' });
+      expect((backend.getThreads as ReturnType<typeof vi.fn>).mock.calls[0][0]).toEqual({
         projectId: 'test',
-        pageUrl: undefined,
-        status: undefined,
       });
       expect(result.current.threads).toEqual(threads);
       expect(result.current.isLoading).toBe(false);
@@ -264,23 +265,13 @@ describe('useComments', () => {
     });
   });
 
-  describe('resolveThread', () => {
-    it('updates thread status to resolved', async () => {
+  describe('setThreadStatus', () => {
+    it('updates thread status via the backend', async () => {
       const { result, backend, store } = setup();
       act(() => { store.getState().setThreads([makeThread()]); });
 
-      await act(async () => { await result.current.resolveThread('thread-1'); });
-      expect(backend.updateThread).toHaveBeenCalledWith('thread-1', { status: 'resolved' });
-    });
-  });
-
-  describe('unresolveThread', () => {
-    it('updates thread status to open', async () => {
-      const { result, backend, store } = setup();
-      act(() => { store.getState().setThreads([makeThread({ status: 'resolved' })]); });
-
-      await act(async () => { await result.current.unresolveThread('thread-1'); });
-      expect(backend.updateThread).toHaveBeenCalledWith('thread-1', { status: 'open' });
+      await act(async () => { await result.current.setThreadStatus('thread-1', 'pending'); });
+      expect(backend.updateThread).toHaveBeenCalledWith('thread-1', { status: 'pending' });
     });
   });
 

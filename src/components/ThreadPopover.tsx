@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 import { micromark } from 'micromark';
 import type { Thread, Comment, Author, Attachment } from '../core/types';
+import { THREAD_STATUSES, STATUS_LABELS, type ThreadStatus } from '../core/status';
 import { formatRelativeTime } from '../core/format';
 import { Composer } from './Composer';
 import { resolvePin } from '../core/pin-resolver';
@@ -149,12 +150,19 @@ function CommentItem({
   );
 }
 
+/** One-click primary action per status; the status dropdown covers every other transition. */
+const QUICK_ACTIONS: Record<ThreadStatus, { label: string; to: ThreadStatus }> = {
+  open: { label: 'Resolve', to: 'resolved' },
+  pending: { label: 'Confirm fix', to: 'resolved' },
+  resolved: { label: 'Reopen', to: 'open' },
+  dismissed: { label: 'Reopen', to: 'open' },
+};
+
 interface ThreadPopoverProps {
   thread: Thread;
   onClose: () => void;
   onReply: (body: string, author: Author, attachments: Attachment[]) => void;
-  onResolve: () => void | Promise<void>;
-  onUnresolve: () => void | Promise<void>;
+  onStatusChange: (status: ThreadStatus) => void | Promise<void>;
   onUploadError?: (msg: string) => void;
 }
 
@@ -162,24 +170,28 @@ export function ThreadPopover({
   thread,
   onClose,
   onReply,
-  onResolve,
-  onUnresolve,
+  onStatusChange,
   onUploadError,
 }: ThreadPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
-  const [isResolving, setIsResolving] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const pinPos = useMemo(() => resolvePin(thread.pin), [thread.pin]);
   const threadContext = useMemo(() => parseThreadContext(thread), [thread]);
 
-  const handleResolveClick = useCallback(async () => {
-    setIsResolving(true);
-    try {
-      await (thread.status === 'open' ? onResolve() : onUnresolve());
-    } finally {
-      setIsResolving(false);
-    }
-  }, [thread.status, onResolve, onUnresolve]);
+  const changeStatus = useCallback(
+    async (status: ThreadStatus) => {
+      setIsUpdatingStatus(true);
+      try {
+        await onStatusChange(status);
+      } finally {
+        setIsUpdatingStatus(false);
+      }
+    },
+    [onStatusChange],
+  );
+
+  const quickAction = QUICK_ACTIONS[thread.status];
 
   // Close on Esc
   useEffect(() => {
@@ -195,12 +207,13 @@ export function ThreadPopover({
   // Close on click outside
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(e.target as Node)
-      ) {
-        onClose();
-      }
+      const target = e.target as Element;
+      if (!popoverRef.current || popoverRef.current.contains(target)) return;
+      // This thread's own pin toggles the popover via its click handler. Closing
+      // here on mousedown would make that click reopen it.
+      const pin = target.closest?.('.rc-pin');
+      if (pin?.getAttribute('data-thread-id') === thread.id) return;
+      onClose();
     };
     // Delay to avoid closing on the same click that opens
     const timer = setTimeout(() => {
@@ -210,7 +223,7 @@ export function ThreadPopover({
       clearTimeout(timer);
       document.removeEventListener('mousedown', handler);
     };
-  }, [onClose]);
+  }, [onClose, thread.id]);
 
   // Focus trap: save previous focus, move focus into dialog, restore on close
   useEffect(() => {
@@ -281,11 +294,24 @@ export function ThreadPopover({
         <div className="rc-popover-header-actions">
           <button
             className="rc-popover-resolve"
-            onClick={handleResolveClick}
-            disabled={isResolving}
+            onClick={() => changeStatus(quickAction.to)}
+            disabled={isUpdatingStatus}
           >
-            {isResolving ? '…' : (thread.status === 'open' ? 'Resolve' : 'Unresolve')}
+            {isUpdatingStatus ? '…' : quickAction.label}
           </button>
+          <select
+            className={`rc-popover-status rc-status-badge--${thread.status}`}
+            value={thread.status}
+            onChange={(e) => changeStatus(e.target.value as ThreadStatus)}
+            disabled={isUpdatingStatus}
+            aria-label="Thread status"
+          >
+            {THREAD_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {STATUS_LABELS[s]}
+              </option>
+            ))}
+          </select>
           <button
             className="rc-popover-close"
             onClick={onClose}

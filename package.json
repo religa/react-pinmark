@@ -67,7 +67,8 @@
     "react-pinmark-mcp": "./dist/mcp/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "src/adapters/supabase/migrations/*.sql"
   ],
   "scripts": {
     "prebuild": "rm -rf dist",
@@ -77,7 +78,7 @@
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
     "demo": "cd demo && npm run dev",
-    "postbuild": "cp dist/cjs/index.css dist/index.css && cp dist/cjs/index.css.map dist/index.css.map && node -e \"const f='dist/esm/components/CommentOverlay.js';require('fs').writeFileSync(f,require('fs').readFileSync(f,'utf8').replace(/^import.*\\.css.*\\n/m,''))\"",
+    "postbuild": "cp dist/cjs/index.css dist/index.css && cp dist/cjs/index.css.map dist/index.css.map && rm -f dist/esm/index.css dist/esm/index.css.map",
     "prepublishOnly": "npm run build",
     "prepare": "husky"
   },

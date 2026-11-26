@@ -107,7 +107,7 @@ Renders the portal with floating controls, pins, thread popover, and thread list
 
 | Prop | Type | Default | Description |
 |---|---|---|---|
-| `hideResolved` | `boolean` | `true` | Hide resolved threads from the overlay. |
+| `hideResolved` | `boolean` | `true` | Show only active threads (`open` + `pending`) in the overlay; hide `resolved` and `dismissed`. |
 | `zIndex` | `number` | `10000` | CSS `z-index` for the overlay root. |
 | `shortcutKey` | `string \| null` | `'c'` | Key that toggles comment mode. Pass `null` to disable. |
 | `onNavigatePage` | `(pageUrl: string) => void` | — | Called when the user clicks a thread on another page. Use your router's navigate function; falls back to `window.location.href`. |
@@ -132,8 +132,7 @@ const {
   closeThreadList,
   createThread,
   replyToThread,
-  resolveThread,
-  unresolveThread,
+  setThreadStatus,   // (threadId, 'open' | 'pending' | 'resolved' | 'dismissed')
   deleteThread,
   deleteComment,
   refreshThreads,
@@ -166,6 +165,19 @@ const myBackend: BackendAdapter = {
 };
 ```
 
+`status` in `getThreads` is a single status, `'active'` (open + pending) or `'all'`. Use the exported `matchesStatusFilter(thread.status, status)` helper so you don't have to reimplement that logic.
+
+## Thread statuses
+
+| Status | Meaning | Active? |
+|---|---|---|
+| `open` | Raised, needs action | yes |
+| `pending` | Fix is done, waiting for the reporter to check it | yes |
+| `resolved` | Reporter confirmed the fix | no |
+| `dismissed` | Won't fix, by design, or a duplicate | no |
+
+Active threads are shown in the overlay by default and counted in the unresolved badge. The full list is exported as `THREAD_STATUSES`.
+
 ## Attachment adapter interface
 
 ```ts
@@ -187,13 +199,15 @@ npm install @supabase/supabase-js
 
 ### 2. Run the migrations
 
-In the Supabase dashboard → **SQL Editor**, run the three migration files in order:
+The SQL files ship with the package in `node_modules/react-pinmark/src/adapters/supabase/migrations/`. In the Supabase dashboard → **SQL Editor**, run them in order:
 
-1. `src/adapters/supabase/migrations/001_create_threads.sql`
-2. `src/adapters/supabase/migrations/002_create_comments.sql`
-3. `src/adapters/supabase/migrations/003_create_storage.sql`
+1. `001_create_threads.sql`: the `rc_threads` table with RLS
+2. `002_create_comments.sql`: the `rc_comments` table with RLS
+3. `003_create_storage.sql`: the `rc-attachments` storage bucket
+4. `004_add_delete_policies.sql` and `005_grant_anon_access.sql`: fixes for databases created with older versions. On a fresh install they change nothing.
+5. `006_extend_thread_status.sql`: enables the `pending` and `dismissed` statuses
 
-These create the `rc_threads` and `rc_comments` tables (with RLS) and the `rc-attachments` storage bucket.
+Every migration is safe to re-run, so after upgrading react-pinmark you can run them all again.
 
 ### 3. Wire up the adapter
 
@@ -236,6 +250,7 @@ Override CSS custom properties on `.rc-root`:
   --rc-color-border:          #e5e7eb;
   --rc-color-surface:         #f9fafb;
   --rc-color-resolved:        #9ca3af;
+  --rc-color-pending:         #d97706;
   --rc-font-family:           -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --rc-font-size:             13px;
   --rc-radius:                8px;
@@ -270,11 +285,12 @@ react-pinmark ships a [Model Context Protocol](https://modelcontextprotocol.io/)
 | `pinmark_list_threads` | List threads, optionally filtered by status or page URL |
 | `pinmark_get_comments` | Get all comments for a thread |
 | `pinmark_add_comment` | Add a comment to a thread |
-| `pinmark_resolve_thread` | Mark a thread as resolved |
-| `pinmark_reopen_thread` | Reopen a resolved thread |
+| `pinmark_set_thread_status` | Set a thread to `open`, `pending`, `resolved` or `dismissed` |
 | `pinmark_delete_thread` | Delete a thread and its comments |
 | `pinmark_delete_comment` | Delete a specific comment |
 | `pinmark_export` | Export threads as JSON or Markdown |
+
+The tool description tells agents to set a thread to `pending` after addressing it, rather than `resolved`. The reporter then confirms the fix in the UI (**Confirm fix**) or reopens the thread.
 
 ### Setup with Claude Code
 
@@ -322,12 +338,20 @@ Then in `~/.claude/settings.json`:
 The same operations are available via the CLI:
 
 ```bash
-npx react-pinmark threads list --status open
+npx react-pinmark threads list --status active
+npx react-pinmark threads status <thread-id> pending
 npx react-pinmark comments add <thread-id> --body "Fixed in latest deploy"
 npx react-pinmark export --format markdown
 ```
 
 Run `npx react-pinmark --help` for the full command list.
+
+The CLI and MCP server read their settings in this order, and the first source that sets a value wins:
+
+1. CLI flags
+2. `PINMARK_*` environment variables
+3. The nearest directory, walking up from the current one, whose `.pinmarkrc`, `.env.pinmark` or `.env` contains pinmark settings
+4. For the project ID only, a scan of your source code for `projectId`
 
 ## License
 

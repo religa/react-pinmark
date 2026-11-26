@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createSupabaseAdapter } from './index';
 
+type SupabaseClientArg = Parameters<typeof createSupabaseAdapter>[0]['supabaseClient'];
+
 function createMockSupabase() {
   const mockQuery = {
     select: vi.fn().mockReturnThis(),
@@ -8,6 +10,7 @@ function createMockSupabase() {
     update: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
     single: vi.fn().mockReturnThis(),
     then: vi.fn(),
@@ -23,7 +26,7 @@ function createMockSupabase() {
     storage: {
       from: vi.fn(() => mockStorage),
     },
-  };
+  } as unknown as SupabaseClientArg;
 
   return { client, mockQuery, mockStorage };
 }
@@ -59,7 +62,7 @@ describe('createSupabaseAdapter', () => {
         });
       });
 
-      const adapter = createSupabaseAdapter({ supabaseClient: client as any });
+      const adapter = createSupabaseAdapter({ supabaseClient: client });
       const threads = await adapter.getThreads({ projectId: 'proj' });
 
       expect(threads).toHaveLength(1);
@@ -74,7 +77,7 @@ describe('createSupabaseAdapter', () => {
         resolve({ data: [], error: null });
       });
 
-      const adapter = createSupabaseAdapter({ supabaseClient: client as any });
+      const adapter = createSupabaseAdapter({ supabaseClient: client });
       await adapter.getThreads({ projectId: 'proj', pageUrl: '/about' });
 
       expect(mockQuery.eq).toHaveBeenCalledWith('page_url', '/about');
@@ -86,10 +89,34 @@ describe('createSupabaseAdapter', () => {
         resolve({ data: [], error: null });
       });
 
-      const adapter = createSupabaseAdapter({ supabaseClient: client as any });
+      const adapter = createSupabaseAdapter({ supabaseClient: client });
       await adapter.getThreads({ projectId: 'proj', status: 'resolved' });
 
-      expect(mockQuery.eq).toHaveBeenCalledWith('status', 'resolved');
+      expect(mockQuery.in).toHaveBeenCalledWith('status', ['resolved']);
+    });
+
+    it('expands the active filter to open + pending', async () => {
+      const { client, mockQuery } = createMockSupabase();
+      mockQuery.then.mockImplementation((resolve: Function) => {
+        resolve({ data: [], error: null });
+      });
+
+      const adapter = createSupabaseAdapter({ supabaseClient: client });
+      await adapter.getThreads({ projectId: 'proj', status: 'active' });
+
+      expect(mockQuery.in).toHaveBeenCalledWith('status', ['open', 'pending']);
+    });
+
+    it('does not filter by status for all', async () => {
+      const { client, mockQuery } = createMockSupabase();
+      mockQuery.then.mockImplementation((resolve: Function) => {
+        resolve({ data: [], error: null });
+      });
+
+      const adapter = createSupabaseAdapter({ supabaseClient: client });
+      await adapter.getThreads({ projectId: 'proj', status: 'all' });
+
+      expect(mockQuery.in).not.toHaveBeenCalled();
     });
 
     it('throws on error', async () => {
@@ -98,7 +125,7 @@ describe('createSupabaseAdapter', () => {
         resolve({ data: null, error: { message: 'DB error' } });
       });
 
-      const adapter = createSupabaseAdapter({ supabaseClient: client as any });
+      const adapter = createSupabaseAdapter({ supabaseClient: client });
       await expect(adapter.getThreads({ projectId: 'proj' })).rejects.toThrow(
         'DB error',
       );
@@ -139,7 +166,7 @@ describe('createSupabaseAdapter', () => {
         }
       });
 
-      const adapter = createSupabaseAdapter({ supabaseClient: client as any });
+      const adapter = createSupabaseAdapter({ supabaseClient: client });
       const thread = await adapter.createThread({
         projectId: 'proj',
         pageUrl: '/page',
@@ -171,7 +198,7 @@ describe('createSupabaseAdapter', () => {
         });
       });
 
-      const adapter = createSupabaseAdapter({ supabaseClient: client as any });
+      const adapter = createSupabaseAdapter({ supabaseClient: client });
       const comment = await adapter.createComment({
         threadId: 't1',
         author: { displayName: 'Bob' },
@@ -202,7 +229,7 @@ describe('createSupabaseAdapter', () => {
         });
       });
 
-      const adapter = createSupabaseAdapter({ supabaseClient: client as any });
+      const adapter = createSupabaseAdapter({ supabaseClient: client });
       const thread = await adapter.updateThread('t1', { status: 'resolved' });
       expect(thread.status).toBe('resolved');
     });
@@ -212,15 +239,35 @@ describe('createSupabaseAdapter', () => {
     it('deletes a comment by id', async () => {
       const { client, mockQuery } = createMockSupabase();
       mockQuery.then.mockImplementation((resolve: Function) => {
-        resolve({ data: null, error: null });
+        resolve({ data: [{ id: 'c1' }], error: null });
       });
 
-      const adapter = createSupabaseAdapter({ supabaseClient: client as any });
+      const adapter = createSupabaseAdapter({ supabaseClient: client });
       await adapter.deleteComment('c1');
 
       expect(client.from).toHaveBeenCalledWith('rc_comments');
       expect(mockQuery.delete).toHaveBeenCalled();
       expect(mockQuery.eq).toHaveBeenCalledWith('id', 'c1');
+    });
+
+    it('throws when no row was deleted (missing id or blocked by RLS)', async () => {
+      const { client, mockQuery } = createMockSupabase();
+      mockQuery.then.mockImplementation((resolve: Function) => {
+        resolve({ data: [], error: null });
+      });
+
+      const adapter = createSupabaseAdapter({ supabaseClient: client });
+      await expect(adapter.deleteComment('nope')).rejects.toThrow('not found or not deletable');
+    });
+
+    it('settles when the query builder rejects', async () => {
+      const { client, mockQuery } = createMockSupabase();
+      mockQuery.then.mockImplementation((_resolve: Function, reject: Function) => {
+        reject(new Error('network down'));
+      });
+
+      const adapter = createSupabaseAdapter({ supabaseClient: client });
+      await expect(adapter.deleteComment('c1')).rejects.toThrow('network down');
     });
 
     it('throws on error', async () => {
@@ -229,7 +276,7 @@ describe('createSupabaseAdapter', () => {
         resolve({ data: null, error: { message: 'Delete failed' } });
       });
 
-      const adapter = createSupabaseAdapter({ supabaseClient: client as any });
+      const adapter = createSupabaseAdapter({ supabaseClient: client });
       await expect(adapter.deleteComment('c1')).rejects.toThrow('Delete failed');
     });
   });
@@ -245,7 +292,7 @@ describe('createSupabaseAdapter', () => {
         data: { publicUrl: 'https://cdn.example.com/test.png' },
       });
 
-      const adapter = createSupabaseAdapter({ supabaseClient: client as any });
+      const adapter = createSupabaseAdapter({ supabaseClient: client });
       const file = new File(['data'], 'test.png', { type: 'image/png' });
       const attachment = await adapter.uploadAttachment(file);
 

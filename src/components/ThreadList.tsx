@@ -1,6 +1,15 @@
 import React, { useEffect, useMemo, useCallback, useState } from 'react';
 import { useComments } from '../hooks/useComments';
 import { formatRelativeTime } from '../core/format';
+import {
+  THREAD_STATUSES,
+  STATUS_FILTERS,
+  STATUS_LABELS,
+  isStatusFilter,
+  isThreadStatus,
+  matchesStatusFilter,
+} from '../core/status';
+import { computePinNumbers } from '../core/pin-numbers';
 
 export interface ThreadListProps {
   onNavigate: (threadId: string) => void;
@@ -17,8 +26,7 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
     isLoading,
     closeThreadList,
     setFilter,
-    resolveThread,
-    unresolveThread,
+    setThreadStatus,
     deleteThread,
   } = useComments();
 
@@ -31,7 +39,7 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
       const saved = sessionStorage.getItem(SESSION_KEY);
       if (saved) {
         const { pageUrl, status } = JSON.parse(saved);
-        setFilter({ pageUrl, status });
+        setFilter({ pageUrl, status: isStatusFilter(status) ? status : undefined });
       }
     } catch {}
   }, []); // setFilter is a stable store action — intentionally omitted
@@ -61,14 +69,11 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
     return () => document.removeEventListener('keydown', handler);
   }, [isThreadListOpen, closeThreadList]);
 
-  // Pin number = 1-based index among all open threads (matches overlay pin numbers)
-  const openThreads = useMemo(() => threads.filter((t) => t.status === 'open'), [threads]);
+  // Same numbering as the overlay pins
+  const pinNumbers = useMemo(() => computePinNumbers(threads), [threads]);
   const getPinNumber = useCallback(
-    (threadId: string) => {
-      const idx = openThreads.findIndex((t) => t.id === threadId);
-      return idx >= 0 ? idx + 1 : null;
-    },
-    [openThreads],
+    (threadId: string) => pinNumbers.get(threadId) ?? null,
+    [pinNumbers],
   );
 
   // Client-side filtering against already-loaded threads
@@ -77,9 +82,7 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
     if (filter.pageUrl) {
       result = result.filter((t) => t.pageUrl === filter.pageUrl);
     }
-    if (filter.status && filter.status !== 'all') {
-      result = result.filter((t) => t.status === filter.status);
-    }
+    result = result.filter((t) => matchesStatusFilter(t.status, filter.status));
     return result;
   }, [threads, filter]);
 
@@ -104,25 +107,20 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
     }
   }, [allSelected, filteredThreads]);
 
-  const handleBulkResolve = useCallback(async () => {
-    setIsBulkLoading(true);
-    try {
-      await Promise.all([...selectedIds].map((id) => resolveThread(id)));
-      setSelectedIds(new Set());
-    } finally {
-      setIsBulkLoading(false);
-    }
-  }, [selectedIds, resolveThread]);
-
-  const handleBulkUnresolve = useCallback(async () => {
-    setIsBulkLoading(true);
-    try {
-      await Promise.all([...selectedIds].map((id) => unresolveThread(id)));
-      setSelectedIds(new Set());
-    } finally {
-      setIsBulkLoading(false);
-    }
-  }, [selectedIds, unresolveThread]);
+  const handleBulkStatus = useCallback(
+    async (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const status = e.target.value;
+      if (!isThreadStatus(status)) return;
+      setIsBulkLoading(true);
+      try {
+        await Promise.all([...selectedIds].map((id) => setThreadStatus(id, status)));
+        setSelectedIds(new Set());
+      } finally {
+        setIsBulkLoading(false);
+      }
+    },
+    [selectedIds, setThreadStatus],
+  );
 
   const handleBulkDelete = useCallback(async () => {
     if (!window.confirm(`Delete ${selectedIds.size} thread${selectedIds.size !== 1 ? 's' : ''}? This cannot be undone.`)) return;
@@ -190,8 +188,8 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
 
   const handleStatusFilterChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const value = e.target.value as 'all' | 'open' | 'resolved';
-      setFilter({ status: value === 'all' ? undefined : value });
+      const value = e.target.value;
+      setFilter({ status: isStatusFilter(value) && value !== 'all' ? value : undefined });
     },
     [setFilter],
   );
@@ -241,21 +239,33 @@ export function ThreadList({ onNavigate, shortcutKey }: ThreadListProps) {
           onChange={handleStatusFilterChange}
           aria-label="Status filter"
         >
-          <option value="all">All statuses</option>
-          <option value="open">Open</option>
-          <option value="resolved">Resolved</option>
+          {STATUS_FILTERS.map((s) => (
+            <option key={s} value={s}>
+              {STATUS_LABELS[s]}
+            </option>
+          ))}
         </select>
       </div>
 
       {someSelected && (
         <div className="rc-bulk-actions">
           <span className="rc-bulk-count">{selectedIds.size} selected</span>
-          <button className="rc-bulk-btn" onClick={handleBulkResolve} disabled={isBulkLoading}>
-            {isBulkLoading ? '…' : 'Resolve'}
-          </button>
-          <button className="rc-bulk-btn" onClick={handleBulkUnresolve} disabled={isBulkLoading}>
-            {isBulkLoading ? '…' : 'Unresolve'}
-          </button>
+          <select
+            className="rc-bulk-btn rc-bulk-status"
+            value=""
+            onChange={handleBulkStatus}
+            disabled={isBulkLoading}
+            aria-label="Set status of selected threads"
+          >
+            <option value="" disabled>
+              {isBulkLoading ? '…' : 'Set status…'}
+            </option>
+            {THREAD_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {STATUS_LABELS[s]}
+              </option>
+            ))}
+          </select>
           <button className="rc-bulk-btn" onClick={handleDownload}>
             Download
           </button>

@@ -5,6 +5,7 @@ import type { TargetInfo } from '../core/context-capture';
 import { getStoredAuthor } from '../core/author';
 import type { Thread, Comment, PinPosition, ThreadFilter, Attachment } from '../core/types';
 import type { CommentStore } from '../core/state';
+import type { ThreadStatus } from '../core/status';
 
 export interface UseComments {
   threads: Thread[];
@@ -30,8 +31,7 @@ export interface UseComments {
     body: string,
     attachments?: Attachment[],
   ): Promise<Comment>;
-  resolveThread(threadId: string): Promise<void>;
-  unresolveThread(threadId: string): Promise<void>;
+  setThreadStatus(threadId: string, status: ThreadStatus): Promise<void>;
   deleteThread(threadId: string): Promise<void>;
   deleteComment(commentId: string, threadId: string): Promise<void>;
   refreshThreads(): Promise<void>;
@@ -68,14 +68,10 @@ export function useComments(): UseComments {
   }, [propAuthor]);
 
   const refreshThreads = useCallback(async () => {
-    const { filter: currentFilter } = store.getState();
     store.getState().setLoading(true);
     try {
-      const fetched = await backend.getThreads({
-        projectId,
-        pageUrl: currentFilter.pageUrl,
-        status: currentFilter.status,
-      });
+      // Unfiltered on purpose — see CommentProvider's fetchThreads.
+      const fetched = await backend.getThreads({ projectId });
       store.getState().setThreads(fetched);
     } finally {
       store.getState().setLoading(false);
@@ -166,21 +162,9 @@ export function useComments(): UseComments {
     [store, backend, getAuthor],
   );
 
-  const resolveThread = useCallback(
-    async (threadId: string) => {
-      const updated = await backend.updateThread(threadId, {
-        status: 'resolved',
-      });
-      store.getState().updateThread(threadId, updated);
-    },
-    [store, backend],
-  );
-
-  const unresolveThread = useCallback(
-    async (threadId: string) => {
-      const updated = await backend.updateThread(threadId, {
-        status: 'open',
-      });
+  const setThreadStatus = useCallback(
+    async (threadId: string, status: ThreadStatus) => {
+      const updated = await backend.updateThread(threadId, { status });
       store.getState().updateThread(threadId, updated);
     },
     [store, backend],
@@ -224,8 +208,7 @@ export function useComments(): UseComments {
     closeThreadList,
     createThread,
     replyToThread,
-    resolveThread,
-    unresolveThread,
+    setThreadStatus,
     deleteThread,
     deleteComment,
     refreshThreads,

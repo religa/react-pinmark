@@ -12,6 +12,13 @@ export default tseslint.config(
     },
   },
   {
+    // The CLI's job is to print to stdout.
+    files: ['src/cli/**/*.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+  {
     files: ['src/**/*.test.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-unsafe-function-type': 'off',

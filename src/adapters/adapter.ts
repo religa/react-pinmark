@@ -6,13 +6,14 @@ import type {
   CreateThreadInput,
   CreateCommentInput,
 } from '../core/types';
+import type { ThreadStatus } from '../core/status';
 
 export interface BackendAdapter {
   getThreads(params: GetThreadsParams): Promise<Thread[]>;
   createThread(input: CreateThreadInput): Promise<Thread>;
   updateThread(
     id: string,
-    patch: { status: 'open' | 'resolved' },
+    patch: { status: ThreadStatus },
   ): Promise<Thread>;
   deleteThread(id: string): Promise<void>;
   getComments(threadId: string): Promise<Comment[]>;

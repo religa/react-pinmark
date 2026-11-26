@@ -6,6 +6,7 @@ import type {
   CreateThreadInput,
   CreateCommentInput,
 } from '../../core/types';
+import { statusesForFilter, type ThreadStatus } from '../../core/status';
 
 interface SupabaseClient {
   from(table: string): SupabaseQueryBuilder;
@@ -18,10 +19,12 @@ interface SupabaseQueryBuilder {
   update(data: unknown): SupabaseQueryBuilder;
   delete(): SupabaseQueryBuilder;
   eq(column: string, value: unknown): SupabaseQueryBuilder;
+  in(column: string, values: readonly unknown[]): SupabaseQueryBuilder;
   order(column: string, options?: { ascending?: boolean }): SupabaseQueryBuilder;
   single(): SupabaseQueryBuilder;
   then<T>(
     resolve: (value: { data: T; error: SupabaseError | null }) => void,
+    reject?: (reason: unknown) => void,
   ): void;
 }
 
@@ -81,8 +84,9 @@ export function createSupabaseAdapter(
       if (params.pageUrl) {
         query = query.eq('page_url', params.pageUrl);
       }
-      if (params.status && params.status !== 'all') {
-        query = query.eq('status', params.status);
+      const statuses = statusesForFilter(params.status);
+      if (statuses) {
+        query = query.in('status', statuses);
       }
 
       const { data, error } = await asPromise<Record<string, unknown>[]>(query);
@@ -116,6 +120,7 @@ export function createSupabaseAdapter(
             .single(),
         );
       if (threadError) throw new Error(threadError.message);
+      const threadId = (threadRow as Record<string, unknown>).id;
 
       // Create the first comment
       const { data: commentRow, error: commentError } =
@@ -123,7 +128,7 @@ export function createSupabaseAdapter(
           sb
             .from('rc_comments')
             .insert({
-              thread_id: (threadRow as Record<string, unknown>).id,
+              thread_id: threadId,
               author: input.author,
               body: input.body,
               attachments: input.attachments ?? [],
@@ -131,7 +136,11 @@ export function createSupabaseAdapter(
             .select()
             .single(),
         );
-      if (commentError) throw new Error(commentError.message);
+      if (commentError) {
+        // Two inserts aren't atomic — roll back so a retry doesn't leave an empty pin.
+        await asPromise<unknown>(sb.from('rc_threads').delete().eq('id', threadId)).catch(() => {});
+        throw new Error(commentError.message);
+      }
 
       return mapThread(threadRow as Record<string, unknown>, [
         mapComment(commentRow as Record<string, unknown>),
@@ -140,7 +149,7 @@ export function createSupabaseAdapter(
 
     async updateThread(
       id: string,
-      patch: { status: 'open' | 'resolved' },
+      patch: { status: ThreadStatus },
     ): Promise<Thread> {
       const { data, error } = await asPromise<Record<string, unknown>>(
         sb
@@ -192,10 +201,12 @@ export function createSupabaseAdapter(
     },
 
     async deleteComment(id: string): Promise<void> {
-      const { error } = await asPromise<unknown>(
-        sb.from('rc_comments').delete().eq('id', id),
+      const { data, error } = await asPromise<unknown[] | null>(
+        sb.from('rc_comments').delete().eq('id', id).select('id'),
       );
       if (error) throw new Error(error.message);
+      // A missing row or an RLS-filtered delete returns no error, only no rows.
+      if (!data?.length) throw new Error(`Comment ${id} not found or not deletable`);
     },
 
     async deleteThread(id: string): Promise<void> {
@@ -205,21 +216,18 @@ export function createSupabaseAdapter(
       );
       if (commentsError) throw new Error(commentsError.message);
 
-      const { error } = await asPromise<unknown>(
-        sb.from('rc_threads').delete().eq('id', id),
+      const { data, error } = await asPromise<unknown[] | null>(
+        sb.from('rc_threads').delete().eq('id', id).select('id'),
       );
       if (error) throw new Error(error.message);
+      if (!data?.length) throw new Error(`Thread ${id} not found or not deletable`);
     },
 
     async uploadAttachment(file: File | Blob) {
-      const ext = file.type === 'image/jpeg' ? 'jpg'
-        : file.type === 'image/png' ? 'png'
-        : file.type === 'image/webp' ? 'webp'
-        : file.type === 'image/gif' ? 'gif'
-        : 'bin';
-      const filename =
-        file instanceof File ? file.name : `paste-${Date.now()}.${ext}`;
-      const path = `attachments/${Date.now()}-${filename}`;
+      // Never use the raw filename: Storage rejects non-ASCII/special-character keys,
+      // and same-name files uploaded in the same millisecond would collide.
+      const unique = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+      const path = `attachments/${unique}.${attachmentExtension(file)}`;
 
       const { error } = await sb.storage
         .from('rc-attachments')
@@ -240,15 +248,27 @@ export function createSupabaseAdapter(
   return adapter;
 }
 
-// Helper to convert Supabase's thenable pattern into a proper Promise
+const MIME_EXTENSIONS: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+};
+
+function attachmentExtension(file: File | Blob): string {
+  if (MIME_EXTENSIONS[file.type]) return MIME_EXTENSIONS[file.type];
+  const fromName = file instanceof File ? file.name.split('.').pop() ?? '' : '';
+  return /^[a-z0-9]{1,8}$/i.test(fromName) ? fromName.toLowerCase() : 'bin';
+}
+
+// Helper to convert Supabase's thenable pattern into a proper Promise.
+// Passes both callbacks so a rejecting builder (e.g. .throwOnError()) can't hang.
 function asPromise<T>(
   query: SupabaseQueryBuilder,
 ): Promise<{ data: T; error: SupabaseError | null }> {
   return new Promise((resolve, reject) => {
     try {
-      query.then((result: { data: T; error: SupabaseError | null }) => {
-        resolve(result);
-      });
+      query.then(resolve, reject);
     } catch (err) {
       reject(err);
     }

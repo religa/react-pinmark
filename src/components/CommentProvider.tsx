@@ -34,14 +34,11 @@ export function CommentProvider({
   const fetchThreads = useMemo(
     () => async () => {
       const store = storeRef.current;
-      const { filter } = store.getState();
       store.getState().setLoading(true);
       try {
-        const threads = await backend.getThreads({
-          projectId,
-          pageUrl: filter.pageUrl,
-          status: filter.status,
-        });
+        // Always load every thread: the store feeds overlay pins and the badge too,
+        // so the ThreadList's filter is applied client-side, never here.
+        const threads = await backend.getThreads({ projectId });
         store.getState().setThreads(threads);
       } catch (err) {
         console.error('[react-pinmark] Failed to fetch threads:', err);

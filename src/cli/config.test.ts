@@ -183,6 +183,43 @@ describe('resolveConfig', () => {
     rmSync(parent, { recursive: true });
   });
 
+  it('env vars take precedence over dotfiles', () => {
+    const dir = makeTmpDir();
+    writeFileSync(
+      join(dir, '.pinmarkrc'),
+      JSON.stringify({
+        supabaseUrl: 'https://prod.supabase.co',
+        supabaseAnonKey: 'file-key',
+        projectId: 'file-project',
+      }),
+    );
+    process.env.PINMARK_SUPABASE_URL = 'https://staging.supabase.co';
+
+    const config = resolveConfig({}, dir);
+    expect(config.supabaseUrl).toBe('https://staging.supabase.co');
+    expect(config.supabaseAnonKey).toBe('file-key');
+    rmSync(dir, { recursive: true });
+  });
+
+  it('keeps walking past a .env with no PINMARK keys', () => {
+    const parent = makeTmpDir();
+    const child = join(parent, 'packages', 'web');
+    mkdirSync(child, { recursive: true });
+    writeFileSync(join(child, '.env'), 'VITE_API_URL=http://localhost\n');
+    writeFileSync(
+      join(parent, '.pinmarkrc'),
+      JSON.stringify({
+        supabaseUrl: 'https://root.supabase.co',
+        supabaseAnonKey: 'root-key',
+        projectId: 'root-project',
+      }),
+    );
+
+    const config = resolveConfig({}, child);
+    expect(config.projectId).toBe('root-project');
+    rmSync(parent, { recursive: true });
+  });
+
   it('throws with clear message when config is incomplete', () => {
     const dir = makeTmpDir();
     expect(() => resolveConfig({}, dir)).toThrow(

@@ -35,6 +35,25 @@ describe('CommentStore', () => {
     expect(store.getState().threads).toEqual([t1, t2]);
   });
 
+  it('setThreads refreshes the open thread from the new data', () => {
+    const store = createCommentStore();
+    store.getState().setThreads([makeThread({ id: 'a' })]);
+    store.getState().setActiveThread(store.getState().threads[0]);
+
+    const refetched = makeThread({ id: 'a', status: 'pending' });
+    store.getState().setThreads([refetched]);
+    expect(store.getState().activeThread).toBe(refetched);
+  });
+
+  it('setThreads closes the open thread if it was deleted elsewhere', () => {
+    const store = createCommentStore();
+    store.getState().setThreads([makeThread({ id: 'a' })]);
+    store.getState().setActiveThread(store.getState().threads[0]);
+
+    store.getState().setThreads([makeThread({ id: 'b' })]);
+    expect(store.getState().activeThread).toBeNull();
+  });
+
   it('addThread appends a thread', () => {
     const store = createCommentStore();
     const t1 = makeThread({ id: 'a' });

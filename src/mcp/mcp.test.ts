@@ -139,25 +139,37 @@ describe('MCP tool handlers', () => {
     });
   });
 
-  describe('pinmark_resolve_thread', () => {
-    it('resolves a thread', async () => {
-      const result = await getHandler('pinmark_resolve_thread')({
+  describe('pinmark_set_thread_status', () => {
+    it('sets a thread to pending', async () => {
+      await getHandler('pinmark_set_thread_status')({
         threadId: 'thread-1',
+        status: 'pending',
       });
       expect(adapter.updateThread).toHaveBeenCalledWith('thread-1', {
+        status: 'pending',
+      });
+    });
+
+    it('returns the updated thread', async () => {
+      const result = await getHandler('pinmark_set_thread_status')({
+        threadId: 'thread-1',
         status: 'resolved',
       });
-      const data = parseResult(result);
-      expect(data.status).toBe('resolved');
+      expect(parseResult(result).status).toBe('resolved');
     });
-  });
 
-  describe('pinmark_reopen_thread', () => {
-    it('reopens a thread', async () => {
-      await getHandler('pinmark_reopen_thread')({ threadId: 'thread-1' });
-      expect(adapter.updateThread).toHaveBeenCalledWith('thread-1', {
-        status: 'open',
-      });
+    it('rejects an unknown status', async () => {
+      await expect(
+        getHandler('pinmark_set_thread_status')({ threadId: 'thread-1', status: 'done' }),
+      ).rejects.toThrow('Status must be one of');
+      expect(adapter.updateThread).not.toHaveBeenCalled();
+    });
+
+    it('rejects a missing threadId', async () => {
+      await expect(
+        getHandler('pinmark_set_thread_status')({ status: 'pending' }),
+      ).rejects.toThrow('threadId is required');
+      expect(adapter.updateThread).not.toHaveBeenCalled();
     });
   });
 
@@ -202,9 +214,25 @@ describe('MCP tool handlers', () => {
       const result = await getHandler('pinmark_export')({
         format: 'markdown',
       });
-      const data = parseResult(result);
-      expect(typeof data).toBe('string');
-      expect(data).toContain('Feedback Report');
+      // Raw markdown, not a JSON-quoted string
+      const text = result.content[0].text;
+      expect(text.startsWith('# Feedback Report')).toBe(true);
+    });
+  });
+
+  describe('input validation', () => {
+    it('rejects an unknown status filter instead of returning everything', async () => {
+      await expect(
+        getHandler('pinmark_list_threads')({ status: 'resolvd' }),
+      ).rejects.toThrow('Status filter must be one of');
+      expect(adapter.getThreads).not.toHaveBeenCalled();
+    });
+
+    it('defaults an empty author to MCP', async () => {
+      await getHandler('pinmark_add_comment')({ threadId: 'thread-1', body: 'hi', author: '' });
+      expect(adapter.createComment).toHaveBeenCalledWith(
+        expect.objectContaining({ author: { displayName: 'MCP' } }),
+      );
     });
   });
 

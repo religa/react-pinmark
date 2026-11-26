@@ -35,7 +35,15 @@ export function createCommentStore() {
     isLoading: false,
 
     // Actions
-    setThreads: (threads) => set({ threads }),
+    // Keep the open popover in sync with refetched data (new replies, status
+    // changes, or the thread being deleted elsewhere).
+    setThreads: (threads) =>
+      set((s) => ({
+        threads,
+        activeThread: s.activeThread
+          ? threads.find((t) => t.id === s.activeThread!.id) ?? null
+          : null,
+      })),
     addThread: (thread) =>
       set((s) => ({ threads: [...s.threads, thread] })),
     updateThread: (id, patch) =>

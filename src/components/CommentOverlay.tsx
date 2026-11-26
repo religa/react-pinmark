@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState, useRef } from 'react';
+import React, { useEffect, useCallback, useState, useRef, useMemo, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { useCommentContext } from './CommentContext';
 import { useComments } from '../hooks/useComments';
@@ -14,6 +14,8 @@ import { createPinPosition, resolvePin } from '../core/pin-resolver';
 import { useLocationPathname } from '../hooks/useLocationPathname';
 import type { PinPosition, Author, Attachment } from '../core/types';
 import '../styles/base.css';
+import { isActiveStatus } from '../core/status';
+import { computePinNumbers } from '../core/pin-numbers';
 
 export interface CommentOverlayProps {
   hideResolved?: boolean;
@@ -25,6 +27,13 @@ export interface CommentOverlayProps {
 }
 
 const PENDING_THREAD_KEY = 'rc_pending_thread';
+
+const subscribeNoop = () => () => {};
+
+/** false during SSR and hydration, true once running in the browser. */
+function useIsClient(): boolean {
+  return useSyncExternalStore(subscribeNoop, () => true, () => false);
+}
 
 export function CommentOverlay({
   hideResolved = true,
@@ -44,11 +53,12 @@ export function CommentOverlay({
     isThreadListOpen,
     createThread,
     replyToThread,
-    resolveThread,
-    unresolveThread,
+    setThreadStatus,
     openThreadList,
   } = useComments();
   const currentPage = useLocationPathname();
+  const isClient = useIsClient();
+  const pinNumbers = useMemo(() => computePinNumbers(threads), [threads]);
 
   const [pendingPin, setPendingPin] = useState<{
     pin: PinPosition;
@@ -156,8 +166,9 @@ export function CommentOverlay({
           targetInfo: pendingPin.targetInfo,
         });
         setPendingPin(null);
-      } catch {
+      } catch (err) {
         setToastError('Failed to post comment. Please try again.');
+        throw err; // Composer keeps the draft when onSubmit rejects
       }
     },
     [pendingPin, createThread, attachmentAdapter],
@@ -167,8 +178,9 @@ export function CommentOverlay({
     async (threadId: string, body: string, _author: Author, attachments: Attachment[]) => {
       try {
         await replyToThread(threadId, body, attachments);
-      } catch {
+      } catch (err) {
         setToastError('Failed to post reply. Please try again.');
+        throw err; // Composer keeps the draft when onSubmit rejects
       }
     },
     [replyToThread],
@@ -244,14 +256,15 @@ export function CommentOverlay({
     } catch { /* ignore */ }
   }, []);
 
-  if (!enabled) return null;
+  // The portal targets document.body, which doesn't exist during SSR.
+  if (!enabled || !isClient) return null;
 
   const pageThreads = threads.filter((t) => t.pageUrl === currentPage);
   const visibleThreads = hideResolved
-    ? pageThreads.filter((t) => t.status === 'open')
+    ? pageThreads.filter((t) => isActiveStatus(t.status))
     : pageThreads;
 
-  const unresolvedCount = pageThreads.filter((t) => t.status === 'open').length;
+  const unresolvedCount = pageThreads.filter((t) => isActiveStatus(t.status)).length;
   const badgeLabel = unresolvedCount > 9 ? '9+' : unresolvedCount > 0 ? String(unresolvedCount) : null;
 
   const portalContent = (
@@ -262,11 +275,11 @@ export function CommentOverlay({
       style={{ '--rc-z-index': zIndex } as React.CSSProperties}
     >
       {/* Pin markers */}
-      {visibleThreads.map((thread, i) => (
+      {visibleThreads.map((thread) => (
         <Pin
           key={thread.id}
           thread={thread}
-          index={i}
+          number={pinNumbers.get(thread.id) ?? 0}
           isActive={activeThread?.id === thread.id}
           highlighted={highlightedThreadId === thread.id}
           onClick={() => {
@@ -287,8 +300,7 @@ export function CommentOverlay({
           onReply={(body, author, attachments) =>
             handleReply(activeThread.id, body, author, attachments)
           }
-          onResolve={() => resolveThread(activeThread.id)}
-          onUnresolve={() => unresolveThread(activeThread.id)}
+          onStatusChange={(status) => setThreadStatus(activeThread.id, status)}
           onUploadError={setToastError}
         />
       )}

@@ -11,6 +11,12 @@ export type { CommentContextValue } from './components/CommentContext';
 export { formatRelativeTime } from './core/format';
 export { clearStoredAuthor } from './core/author';
 export type { CaptureOptions } from './core/screenshot';
+export {
+  THREAD_STATUSES,
+  isActiveStatus,
+  matchesStatusFilter,
+} from './core/status';
+export type { ThreadStatus, StatusFilter } from './core/status';
 export type {
   Author,
   PinPosition,

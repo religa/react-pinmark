@@ -68,53 +68,58 @@ describe('ThreadPopover', () => {
         thread={makeThread()}
         onClose={vi.fn()}
         onReply={vi.fn()}
-        onResolve={vi.fn()}
-        onUnresolve={vi.fn()}
+        onStatusChange={vi.fn()}
       />,
     );
     expect(screen.getByText('Alice')).toBeInTheDocument();
     expect(screen.getByText('Hello world')).toBeInTheDocument();
   });
 
-  it('shows resolve button for open threads', () => {
+  it.each([
+    ['open', 'Resolve'],
+    ['pending', 'Confirm fix'],
+    ['resolved', 'Reopen'],
+    ['dismissed', 'Reopen'],
+  ] as const)('shows the quick action for %s threads', (status, label) => {
     renderWithContext(
       <ThreadPopover
-        thread={makeThread({ status: 'open' })}
+        thread={makeThread({ status })}
         onClose={vi.fn()}
         onReply={vi.fn()}
-        onResolve={vi.fn()}
-        onUnresolve={vi.fn()}
+        onStatusChange={vi.fn()}
       />,
     );
-    expect(screen.getByText('Resolve')).toBeInTheDocument();
+    expect(screen.getByText(label)).toBeInTheDocument();
   });
 
-  it('shows unresolve button for resolved threads', () => {
+  it('confirming a pending fix sets status to resolved', () => {
+    const onStatusChange = vi.fn();
     renderWithContext(
       <ThreadPopover
-        thread={makeThread({ status: 'resolved' })}
+        thread={makeThread({ status: 'pending' })}
         onClose={vi.fn()}
         onReply={vi.fn()}
-        onResolve={vi.fn()}
-        onUnresolve={vi.fn()}
+        onStatusChange={onStatusChange}
       />,
     );
-    expect(screen.getByText('Unresolve')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Confirm fix'));
+    expect(onStatusChange).toHaveBeenCalledWith('resolved');
   });
 
-  it('calls onResolve when resolve button clicked', () => {
-    const onResolve = vi.fn();
+  it('status dropdown sets any status', () => {
+    const onStatusChange = vi.fn();
     renderWithContext(
       <ThreadPopover
         thread={makeThread()}
         onClose={vi.fn()}
         onReply={vi.fn()}
-        onResolve={onResolve}
-        onUnresolve={vi.fn()}
+        onStatusChange={onStatusChange}
       />,
     );
-    fireEvent.click(screen.getByText('Resolve'));
-    expect(onResolve).toHaveBeenCalledTimes(1);
+    const select = screen.getByLabelText('Thread status');
+    expect(select).toHaveValue('open');
+    fireEvent.change(select, { target: { value: 'dismissed' } });
+    expect(onStatusChange).toHaveBeenCalledWith('dismissed');
   });
 
   it('calls onClose when close button clicked', () => {
@@ -124,12 +129,35 @@ describe('ThreadPopover', () => {
         thread={makeThread()}
         onClose={onClose}
         onReply={vi.fn()}
-        onResolve={vi.fn()}
-        onUnresolve={vi.fn()}
+        onStatusChange={vi.fn()}
       />,
     );
     fireEvent.click(screen.getByLabelText('Close'));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('mousedown on its own pin does not close (the pin click toggles instead)', async () => {
+    const onClose = vi.fn();
+    const pin = document.createElement('button');
+    pin.className = 'rc-pin';
+    pin.setAttribute('data-thread-id', 'thread-1');
+    document.body.appendChild(pin);
+    renderWithContext(
+      <ThreadPopover
+        thread={makeThread({ id: 'thread-1' })}
+        onClose={onClose}
+        onReply={vi.fn()}
+        onStatusChange={vi.fn()}
+      />,
+    );
+    await new Promise((r) => setTimeout(r, 0)); // listener is attached after a tick
+
+    fireEvent.mouseDown(pin);
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.mouseDown(document.body);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    pin.remove();
   });
 
   it('closes on Escape key', () => {
@@ -139,8 +167,7 @@ describe('ThreadPopover', () => {
         thread={makeThread()}
         onClose={onClose}
         onReply={vi.fn()}
-        onResolve={vi.fn()}
-        onUnresolve={vi.fn()}
+        onStatusChange={vi.fn()}
       />,
     );
     fireEvent.keyDown(document, { key: 'Escape' });
@@ -153,8 +180,7 @@ describe('ThreadPopover', () => {
         thread={makeThread()}
         onClose={vi.fn()}
         onReply={vi.fn()}
-        onResolve={vi.fn()}
-        onUnresolve={vi.fn()}
+        onStatusChange={vi.fn()}
       />,
     );
     expect(screen.getByText('1 comment')).toBeInTheDocument();
@@ -178,8 +204,7 @@ describe('ThreadPopover', () => {
         thread={thread}
         onClose={vi.fn()}
         onReply={vi.fn()}
-        onResolve={vi.fn()}
-        onUnresolve={vi.fn()}
+        onStatusChange={vi.fn()}
       />,
     );
     expect(container.querySelector('strong')).toBeInTheDocument();
@@ -204,8 +229,7 @@ describe('ThreadPopover', () => {
         thread={thread}
         onClose={vi.fn()}
         onReply={vi.fn()}
-        onResolve={vi.fn()}
-        onUnresolve={vi.fn()}
+        onStatusChange={vi.fn()}
       />,
     );
     expect(container.querySelector('script')).not.toBeInTheDocument();
@@ -226,8 +250,7 @@ describe('ThreadPopover', () => {
         thread={thread}
         onClose={vi.fn()}
         onReply={vi.fn()}
-        onResolve={vi.fn()}
-        onUnresolve={vi.fn()}
+        onStatusChange={vi.fn()}
       />,
     );
     expect(container.querySelector('.rc-ctx-trigger')).not.toBeNull();
@@ -239,8 +262,7 @@ describe('ThreadPopover', () => {
         thread={makeThread()}
         onClose={vi.fn()}
         onReply={vi.fn()}
-        onResolve={vi.fn()}
-        onUnresolve={vi.fn()}
+        onStatusChange={vi.fn()}
       />,
     );
     expect(container.querySelector('.rc-ctx-trigger')).toBeNull();
@@ -260,8 +282,7 @@ describe('ThreadPopover', () => {
         thread={thread}
         onClose={vi.fn()}
         onReply={vi.fn()}
-        onResolve={vi.fn()}
-        onUnresolve={vi.fn()}
+        onStatusChange={vi.fn()}
       />,
     );
     const trigger = container.querySelector('.rc-ctx-trigger') as HTMLElement;
@@ -294,8 +315,7 @@ describe('ThreadPopover', () => {
         thread={thread}
         onClose={vi.fn()}
         onReply={vi.fn()}
-        onResolve={vi.fn()}
-        onUnresolve={vi.fn()}
+        onStatusChange={vi.fn()}
       />,
     );
     expect(container.querySelectorAll('.rc-ctx-trigger')).toHaveLength(1);
@@ -314,8 +334,7 @@ describe('ThreadPopover', () => {
         thread={thread}
         onClose={vi.fn()}
         onReply={vi.fn()}
-        onResolve={vi.fn()}
-        onUnresolve={vi.fn()}
+        onStatusChange={vi.fn()}
       />,
     );
     const trigger = container.querySelector('.rc-ctx-trigger') as HTMLElement;

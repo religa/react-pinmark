@@ -91,7 +91,7 @@ describe('exportThreads', () => {
       });
 
       expect(output).toContain('# Feedback Report — test');
-      expect(output).toContain('Threads: 3 (open: 2, resolved: 1)');
+      expect(output).toContain('Threads: 3 (open: 2, pending: 0, resolved: 1, dismissed: 0)');
       expect(output).toContain('## /page-a');
       expect(output).toContain('## /page-b');
       expect(output).toContain('### Thread #1 — open');
@@ -107,7 +107,7 @@ describe('exportThreads', () => {
       });
 
       expect(output).toContain('# Feedback Report — test');
-      expect(output).toContain('Threads: 0 (open: 0, resolved: 0)');
+      expect(output).toContain('Threads: 0 (open: 0, pending: 0, resolved: 0, dismissed: 0)');
     });
   });
 });

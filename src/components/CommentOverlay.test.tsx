@@ -125,12 +125,27 @@ describe('CommentOverlay', () => {
     const backend = createMockBackend([resolved, open]);
     renderOverlay(backend);
 
+    // Pin numbers are stable per page: the open thread keeps number 2 even
+    // though the resolved thread #1 is hidden.
     await waitFor(() => {
-      expect(screen.getByLabelText('Comment thread 1')).toBeInTheDocument();
+      expect(screen.getByLabelText('Comment thread 2')).toBeInTheDocument();
     });
     // Only 1 pin should be visible (open thread)
     const pins = screen.getAllByRole('button', { name: /Comment thread/ });
     expect(pins).toHaveLength(1);
+  });
+
+  it('keeps pending threads visible and hides dismissed ones by default', async () => {
+    const pending = makeThread({ id: 'p1', status: 'pending' });
+    const dismissed = makeThread({ id: 'd1', status: 'dismissed' });
+    const backend = createMockBackend([pending, dismissed]);
+    renderOverlay(backend);
+
+    await waitFor(() => {
+      const pins = screen.getAllByRole('button', { name: /Comment thread/ });
+      expect(pins).toHaveLength(1);
+      expect(pins[0]).toHaveAttribute('data-thread-id', 'p1');
+    });
   });
 
   it('shows resolved threads when hideResolved is false', async () => {
